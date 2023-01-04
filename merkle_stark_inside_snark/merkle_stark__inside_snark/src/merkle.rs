@@ -12,7 +12,7 @@ type F = GoldilocksField;
 type Digest = [F; 4];
 
 #[derive(Clone)]
-struct MerkleTreeCircuitConfig {
+struct MerkleTreeCircuitTargets {
     merkle_root: HashOutTarget,
     merkle_proof: MerkleProofTarget,
     private_key: [Target; 4],
@@ -21,19 +21,19 @@ struct MerkleTreeCircuitConfig {
 }
 
 struct MerkleTreeCircuit {
-    config: MerkleTreeCircuitConfig,
+    targets: MerkleTreeCircuitTargets,
 }
 
 impl MerkleTreeCircuit {
-    pub fn construct(config: MerkleTreeCircuitConfig) -> Self {
-        Self { config }
+    pub fn construct(targets: MerkleTreeCircuitTargets) -> Self {
+        Self { targets }
     }
 
     pub fn tree_height(&self) -> usize {
-        self.config.tree_height
+        self.targets.tree_height
     }
 
-    pub fn configure(builder: &mut CircuitBuilder<F, D>, tree_height: usize) -> MerkleTreeCircuitConfig {
+    pub fn configure(builder: &mut CircuitBuilder<F, D>, tree_height: usize) -> MerkleTreeCircuitTargets {
         let merkle_root = builder.add_virtual_hash();
         builder.register_public_inputs(&merkle_root.elements);
 
@@ -52,7 +52,7 @@ impl MerkleTreeCircuit {
             &merkle_proof,
         );
 
-        MerkleTreeCircuitConfig {
+        MerkleTreeCircuitTargets {
             merkle_root,
             merkle_proof,
             private_key,
@@ -68,9 +68,9 @@ impl MerkleTreeCircuit {
         merkle_proof: MerkleProof<F, PoseidonHash>,
         private_key: Digest,
         public_key_index: usize,
-        config: MerkleTreeCircuitConfig,
+        config: MerkleTreeCircuitTargets,
     ) {
-        let MerkleTreeCircuitConfig {
+        let MerkleTreeCircuitTargets {
             merkle_root: merkle_root_target,
             merkle_proof: merkle_proof_target,
             private_key: private_key_target,
@@ -148,7 +148,7 @@ mod tests {
             merkle_tree.prove(public_key_index),
             private_keys[public_key_index],
             public_key_index,
-            circuit.config.clone(),
+            circuit.targets.clone(),
         );
 
         let data: CircuitData<F, PoseidonGoldilocksConfig, D> = builder.build();
