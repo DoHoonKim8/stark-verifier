@@ -1,10 +1,10 @@
-use plonky2::field::field_types::Field;
+use plonky2::field::types::Field;
 use plonky2::field::goldilocks_field::GoldilocksField;
-use plonky2::hash::hash_types::{HashOutTarget, MerkleCapTarget, HashOut};
+use plonky2::hash::hash_types::{HashOutTarget, HashOut};
 use plonky2::hash::merkle_proofs::{MerkleProofTarget, MerkleProof};
 use plonky2::hash::poseidon::PoseidonHash;
 use plonky2::iop::target::Target;
-use plonky2::iop::witness::{PartialWitness, Witness};
+use plonky2::iop::witness::{PartialWitness, WitnessWrite};
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 
 const D: usize = 2;
@@ -48,7 +48,7 @@ impl MerkleTreeCircuit {
         builder.verify_merkle_proof::<PoseidonHash>(
             [private_key, [zero; 4]].concat(),
             &public_key_index_bits,
-            &MerkleCapTarget(vec![merkle_root]),
+            merkle_root,
             &merkle_proof,
         );
 
@@ -84,11 +84,18 @@ impl MerkleTreeCircuit {
         for (ht, value) in merkle_proof_target
             .siblings
             .into_iter()
-            .zip(merkle_proof.siblings) 
+            .zip(merkle_proof.siblings)
         {
             pw.set_hash_target(ht, value);
         }
-        pw.set_targets(&private_key_target, &private_key);
+
+        for (target, value) in private_key_target
+            .into_iter()
+            .zip(private_key)
+        {
+            pw.set_target(target, value);
+        }
+
         pw.set_target(
             public_key_index_target,
             F::from_canonical_usize(public_key_index),
@@ -100,7 +107,7 @@ impl MerkleTreeCircuit {
 mod tests {
     use std::time::Instant;
     use anyhow::Result;
-    use plonky2::field::field_types::Field;
+    use plonky2::field::types::{Field, Sample};
     use plonky2::hash::{poseidon::PoseidonHash, merkle_tree::MerkleTree};
     use plonky2::iop::witness::PartialWitness;
     use plonky2::plonk::circuit_builder::CircuitBuilder;
@@ -123,7 +130,7 @@ mod tests {
     #[test]
     fn merkle_test() -> Result<()> {
         let n = 1 << 10;
-        let private_keys: Vec<Digest> = (0..n).map(|_| F::rand_arr()).collect();
+        let private_keys: Vec<Digest> = (0..n).map(|_| F::rand_array()).collect();
         let public_keys: Vec<Vec<F>> = private_keys
             .iter()
             .map(|&sk| {
