@@ -7,12 +7,12 @@ use plonky2::iop::target::Target;
 use plonky2::iop::witness::{PartialWitness, WitnessWrite};
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 
-const D: usize = 2;
-type F = GoldilocksField;
-type Digest = [F; 4];
+pub const D: usize = 2;
+pub type F = GoldilocksField;
+pub type Digest = [F; 4];
 
 #[derive(Clone)]
-struct MerkleTreeCircuitTargets {
+pub struct MerkleTreeCircuitTargets {
     merkle_root: HashOutTarget,
     merkle_proof: MerkleProofTarget,
     private_key: [Target; 4],
@@ -20,7 +20,7 @@ struct MerkleTreeCircuitTargets {
     tree_height: usize,
 }
 
-struct MerkleTreeCircuit {
+pub struct MerkleTreeCircuit {
     targets: MerkleTreeCircuitTargets,
 }
 
@@ -31,6 +31,10 @@ impl MerkleTreeCircuit {
 
     pub fn tree_height(&self) -> usize {
         self.targets.tree_height
+    }
+
+    pub fn targets(&self) -> MerkleTreeCircuitTargets {
+        self.targets.clone()
     }
 
     pub fn configure(builder: &mut CircuitBuilder<F, D>, tree_height: usize) -> MerkleTreeCircuitTargets {
