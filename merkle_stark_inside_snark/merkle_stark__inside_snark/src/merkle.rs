@@ -98,6 +98,7 @@ impl MerkleTreeCircuit {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Instant;
     use anyhow::Result;
     use plonky2::field::field_types::Field;
     use plonky2::hash::{poseidon::PoseidonHash, merkle_tree::MerkleTree};
@@ -111,6 +112,13 @@ mod tests {
         F,
         Digest,
     };
+
+    fn report_elapsed(now: Instant) {
+        println!(
+            "{}",
+            format!("Took {} seconds", now.elapsed().as_secs())
+        );
+    }
 
     #[test]
     fn merkle_test() -> Result<()> {
@@ -144,7 +152,9 @@ mod tests {
         );
 
         let data: CircuitData<F, PoseidonGoldilocksConfig, D> = builder.build();
+        let now = Instant::now();
         let proof = data.prove(pw)?;
+        report_elapsed(now);
 
         data.verify(proof)
     }
