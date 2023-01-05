@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 plonky2 = { git = "https://github.com/DoHoonKim8/plonky2" }
 anyhow = "1.0.56"
+lazy_static = "1.4.0"

@@ -20,7 +20,7 @@ type ProofTuple<F, C, const D: usize> = (
 );
 
 impl MerkleTreeCircuit {
-    fn recursive_proof<C: GenericConfig<D, F = F>, InnerC: GenericConfig<D, F = F>>(
+    pub fn recursive_proof<C: GenericConfig<D, F = F>, InnerC: GenericConfig<D, F = F>>(
         inner: &ProofTuple<F, InnerC, D>,
         config: &CircuitConfig,
         min_degree_bits: Option<usize>,

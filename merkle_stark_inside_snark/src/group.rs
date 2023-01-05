@@ -16,8 +16,7 @@ use plonky2::{
 pub struct Group(MerkleTree<F, PoseidonHash>);
 
 impl Group {
-    // Generates dummy Merkle tree
-    pub fn new(tree_height: usize) -> Self {
+    pub fn gen_keys(tree_height: usize) -> (Vec<Digest>, Vec<Vec<F>>) {
         let n = 1 << tree_height;
         let private_keys: Vec<Digest> = (0..n).map(|_| F::rand_array()).collect();
         let public_keys: Vec<Vec<F>> = private_keys
@@ -28,7 +27,12 @@ impl Group {
                     .to_vec()
             })
             .collect();
-        Self(MerkleTree::new(public_keys, 0))
+        (private_keys, public_keys)
+    }
+
+    // Generates dummy Merkle tree
+    pub fn new(public_keys: &Vec<Vec<F>>) -> Self {
+        Self(MerkleTree::new(public_keys.clone(), 0))
     }
 
     pub fn tree_height(&self) -> usize {
@@ -67,5 +71,43 @@ impl Group {
         proof: ProofWithPublicInputs<F, C, D>,
     ) -> Result<()> {
         data.verify(proof)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+    use lazy_static::lazy_static;
+    use plonky2::field::types::Field;
+    use plonky2::hash::poseidon::PoseidonHash;
+    use plonky2::plonk::config::Hasher;
+
+    use crate::group::Group;
+    use crate::merkle::Digest;
+    use crate::merkle::F;
+
+    const HEIGHT: usize = 10;
+    lazy_static! {
+        static ref KEYS: (Vec<Digest>, Vec<Vec<F>>) = Group::gen_keys(HEIGHT);
+        static ref GROUP: Group = Group::new(&KEYS.1);
+    }
+
+    #[test]
+    fn membership_test() -> Result<()> {
+        let public_key_index = 12;
+        let private_key = KEYS.0[public_key_index];
+        let (data, proof) = GROUP.prove_membership(public_key_index, private_key);
+        GROUP.verify_proof(data, proof)
+    }
+
+    #[test]
+    /// TODO : Handle error
+    fn fake_membership_test() -> Result<()> {
+        let fake_key_index = 12;
+        let fake_private_key =
+            PoseidonHash::hash_no_pad(&[KEYS.0[fake_key_index], [F::ZERO; 4]].concat()).elements;
+        assert_ne!(KEYS.0[fake_key_index], fake_private_key);
+        let (data, proof) = GROUP.prove_membership(fake_key_index, fake_private_key);
+        GROUP.verify_proof(data, proof)
     }
 }
