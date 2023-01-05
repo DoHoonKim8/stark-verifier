@@ -1,5 +1,5 @@
 [package]
-name = "merkle_stark__inside_snark"
+name = "merkle_stark_inside_snark"
 version = "0.1.0"
 edition = "2021"
 
