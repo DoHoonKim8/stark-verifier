@@ -1,7 +1,7 @@
-use plonky2::field::types::Field;
 use plonky2::field::goldilocks_field::GoldilocksField;
-use plonky2::hash::hash_types::{HashOutTarget, HashOut};
-use plonky2::hash::merkle_proofs::{MerkleProofTarget, MerkleProof};
+use plonky2::field::types::Field;
+use plonky2::hash::hash_types::{HashOut, HashOutTarget};
+use plonky2::hash::merkle_proofs::{MerkleProof, MerkleProofTarget};
 use plonky2::hash::poseidon::PoseidonHash;
 use plonky2::iop::target::Target;
 use plonky2::iop::witness::{PartialWitness, WitnessWrite};
@@ -37,7 +37,10 @@ impl MerkleTreeCircuit {
         self.targets.clone()
     }
 
-    pub fn configure(builder: &mut CircuitBuilder<F, D>, tree_height: usize) -> MerkleTreeCircuitTargets {
+    pub fn configure(
+        builder: &mut CircuitBuilder<F, D>,
+        tree_height: usize,
+    ) -> MerkleTreeCircuitTargets {
         let merkle_root = builder.add_virtual_hash();
         builder.register_public_inputs(&merkle_root.elements);
 
@@ -82,7 +85,11 @@ impl MerkleTreeCircuit {
             tree_height,
         } = config;
 
-        assert_eq!(tree_height, merkle_proof.siblings.len(), "merkle proof length \\neq tree_height");
+        assert_eq!(
+            tree_height,
+            merkle_proof.siblings.len(),
+            "merkle proof length \\neq tree_height"
+        );
 
         pw.set_hash_target(merkle_root_target, merkle_root);
         for (ht, value) in merkle_proof_target
@@ -93,10 +100,7 @@ impl MerkleTreeCircuit {
             pw.set_hash_target(ht, value);
         }
 
-        for (target, value) in private_key_target
-            .into_iter()
-            .zip(private_key)
-        {
+        for (target, value) in private_key_target.into_iter().zip(private_key) {
             pw.set_target(target, value);
         }
 
@@ -109,26 +113,18 @@ impl MerkleTreeCircuit {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Instant;
+    use crate::merkle::{Digest, MerkleTreeCircuit, D, F};
     use anyhow::Result;
     use plonky2::field::types::{Field, Sample};
-    use plonky2::hash::{poseidon::PoseidonHash, merkle_tree::MerkleTree};
+    use plonky2::hash::{merkle_tree::MerkleTree, poseidon::PoseidonHash};
     use plonky2::iop::witness::PartialWitness;
     use plonky2::plonk::circuit_builder::CircuitBuilder;
     use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData};
     use plonky2::plonk::config::{Hasher, PoseidonGoldilocksConfig};
-    use crate::merkle::{
-        MerkleTreeCircuit,
-        D,
-        F,
-        Digest,
-    };
+    use std::time::Instant;
 
     fn report_elapsed(now: Instant) {
-        println!(
-            "{}",
-            format!("Took {} seconds", now.elapsed().as_secs())
-        );
+        println!("{}", format!("Took {} seconds", now.elapsed().as_secs()));
     }
 
     #[test]

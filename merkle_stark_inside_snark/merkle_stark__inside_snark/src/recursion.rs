@@ -1,21 +1,16 @@
+use crate::merkle::{Digest, MerkleTreeCircuit, D, F};
 use anyhow::Result;
 use plonky2::{
+    field::goldilocks_field::GoldilocksField,
+    gates::noop::NoopGate,
+    hash::{merkle_tree::MerkleTree, poseidon::PoseidonHash},
+    iop::witness::{PartialWitness, WitnessWrite},
     plonk::{
+        circuit_builder::CircuitBuilder,
+        circuit_data::{CircuitConfig, CommonCircuitData, VerifierOnlyCircuitData},
+        config::{AlgebraicHasher, GenericConfig},
         proof::ProofWithPublicInputs,
-        circuit_data::{
-            VerifierOnlyCircuitData,
-            CommonCircuitData,
-            CircuitConfig
-        },
-        config::{GenericConfig, AlgebraicHasher}, circuit_builder::CircuitBuilder
     },
-iop::witness::{PartialWitness, WitnessWrite}, gates::noop::NoopGate, field::goldilocks_field::GoldilocksField, hash::{merkle_tree::MerkleTree, poseidon::PoseidonHash}
-};
-use crate::merkle::{
-    MerkleTreeCircuit,
-    Digest,
-    D,
-    F,
 };
 
 type ProofTuple<F, C, const D: usize> = (
@@ -25,10 +20,7 @@ type ProofTuple<F, C, const D: usize> = (
 );
 
 impl MerkleTreeCircuit {
-    fn recursive_proof<
-        C: GenericConfig<D, F = F>,
-        InnerC: GenericConfig<D, F = F>,
-    >(
+    fn recursive_proof<C: GenericConfig<D, F = F>, InnerC: GenericConfig<D, F = F>>(
         inner: &ProofTuple<F, InnerC, D>,
         config: &CircuitConfig,
         min_degree_bits: Option<usize>,
@@ -66,9 +58,8 @@ impl MerkleTreeCircuit {
             }
         }
 
-        let merkle_tree_circuit = MerkleTreeCircuit::construct(
-            MerkleTreeCircuit::configure(&mut builder, tree_height)
-        );
+        let merkle_tree_circuit =
+            MerkleTreeCircuit::construct(MerkleTreeCircuit::configure(&mut builder, tree_height));
         merkle_tree_circuit.assign_targets(
             &mut pw,
             merkle_tree.cap.0[0],
@@ -89,19 +80,14 @@ impl MerkleTreeCircuit {
 
 #[cfg(test)]
 mod tests {
+    use crate::merkle::{Digest, MerkleTreeCircuit, D, F};
     use anyhow::Result;
     use plonky2::field::types::{Field, Sample};
-    use plonky2::hash::{poseidon::PoseidonHash, merkle_tree::MerkleTree};
+    use plonky2::hash::{merkle_tree::MerkleTree, poseidon::PoseidonHash};
     use plonky2::iop::witness::PartialWitness;
     use plonky2::plonk::circuit_builder::CircuitBuilder;
     use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData};
     use plonky2::plonk::config::{Hasher, PoseidonGoldilocksConfig};
-    use crate::merkle::{
-        D,
-        F,
-        Digest,
-        MerkleTreeCircuit
-    };
 
     #[test]
     fn merkle_recursion_test() -> Result<()> {
