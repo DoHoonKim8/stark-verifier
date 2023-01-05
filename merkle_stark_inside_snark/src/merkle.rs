@@ -6,7 +6,9 @@ use plonky2::hash::poseidon::PoseidonHash;
 use plonky2::iop::target::Target;
 use plonky2::iop::witness::{PartialWitness, WitnessWrite};
 use plonky2::plonk::circuit_builder::CircuitBuilder;
+use plonky2::plonk::config::PoseidonGoldilocksConfig;
 
+pub type C = PoseidonGoldilocksConfig;
 pub const D: usize = 2;
 pub type F = GoldilocksField;
 pub type Digest = [F; 4];
@@ -27,10 +29,6 @@ pub struct MerkleTreeCircuit {
 impl MerkleTreeCircuit {
     pub fn construct(targets: MerkleTreeCircuitTargets) -> Self {
         Self { targets }
-    }
-
-    pub fn tree_height(&self) -> usize {
-        self.targets.tree_height
     }
 
     pub fn targets(&self) -> MerkleTreeCircuitTargets {

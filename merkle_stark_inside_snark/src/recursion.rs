@@ -109,8 +109,8 @@ mod tests {
         let mut pw: PartialWitness<F> = PartialWitness::new();
 
         let tree_height = 10;
-        let circuit_config = MerkleTreeCircuit::configure(&mut builder, tree_height);
-        let circuit = MerkleTreeCircuit::construct(circuit_config);
+        let targets = MerkleTreeCircuit::configure(&mut builder, tree_height);
+        let circuit = MerkleTreeCircuit::construct(targets);
         circuit.assign_targets(
             &mut pw,
             merkle_tree.cap.0[0],
