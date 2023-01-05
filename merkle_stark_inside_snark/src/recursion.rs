@@ -80,14 +80,14 @@ impl MerkleTreeCircuit {
 
 #[cfg(test)]
 mod tests {
-    use crate::merkle::{Digest, MerkleTreeCircuit, D, F};
+    use crate::merkle::{Digest, MerkleTreeCircuit, C, D, F};
     use anyhow::Result;
     use plonky2::field::types::{Field, Sample};
     use plonky2::hash::{merkle_tree::MerkleTree, poseidon::PoseidonHash};
     use plonky2::iop::witness::PartialWitness;
     use plonky2::plonk::circuit_builder::CircuitBuilder;
     use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData};
-    use plonky2::plonk::config::{Hasher, PoseidonGoldilocksConfig};
+    use plonky2::plonk::config::Hasher;
 
     #[test]
     fn merkle_recursion_test() -> Result<()> {
@@ -120,14 +120,14 @@ mod tests {
             circuit.targets(),
         );
 
-        let data: CircuitData<F, PoseidonGoldilocksConfig, D> = builder.build();
+        let data: CircuitData<F, C, D> = builder.build();
         let proof = data.prove(pw)?;
 
         data.verify(proof.clone())?;
 
         let inner = (proof, data.verifier_only, data.common);
         let public_key_index2 = 21;
-        MerkleTreeCircuit::recursive_proof::<PoseidonGoldilocksConfig, PoseidonGoldilocksConfig>(
+        MerkleTreeCircuit::recursive_proof::<C, C>(
             &inner,
             &config,
             None,

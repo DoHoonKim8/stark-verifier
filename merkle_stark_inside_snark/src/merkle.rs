@@ -111,14 +111,14 @@ impl MerkleTreeCircuit {
 
 #[cfg(test)]
 mod tests {
-    use crate::merkle::{Digest, MerkleTreeCircuit, D, F};
+    use crate::merkle::{Digest, MerkleTreeCircuit, C, D, F};
     use anyhow::Result;
     use plonky2::field::types::{Field, Sample};
     use plonky2::hash::{merkle_tree::MerkleTree, poseidon::PoseidonHash};
     use plonky2::iop::witness::PartialWitness;
     use plonky2::plonk::circuit_builder::CircuitBuilder;
     use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData};
-    use plonky2::plonk::config::{Hasher, PoseidonGoldilocksConfig};
+    use plonky2::plonk::config::Hasher;
     use std::time::Instant;
 
     fn report_elapsed(now: Instant) {
@@ -156,7 +156,7 @@ mod tests {
             circuit.targets.clone(),
         );
 
-        let data: CircuitData<F, PoseidonGoldilocksConfig, D> = builder.build();
+        let data: CircuitData<F, C, D> = builder.build();
         let now = Instant::now();
         let proof = data.prove(pw)?;
         report_elapsed(now);
