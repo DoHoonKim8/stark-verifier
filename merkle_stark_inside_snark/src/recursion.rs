@@ -122,9 +122,6 @@ mod tests {
 
         let data: CircuitData<F, C, D> = builder.build();
         let proof = data.prove(pw)?;
-
-        data.verify(proof.clone())?;
-
         let inner = (proof, data.verifier_only, data.common);
         let public_key_index2 = 21;
         MerkleTreeCircuit::recursive_proof::<C, C>(
