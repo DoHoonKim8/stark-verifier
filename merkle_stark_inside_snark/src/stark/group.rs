@@ -1,4 +1,4 @@
-use crate::merkle::{Digest, MerkleTreeCircuit, C, D, F};
+use crate::stark::merkle::{Digest, MerkleTreeCircuit, C, D, F};
 use anyhow::Result;
 use plonky2::field::types::Field;
 use plonky2::plonk::config::Hasher;
@@ -82,9 +82,9 @@ mod tests {
     use plonky2::hash::poseidon::PoseidonHash;
     use plonky2::plonk::config::Hasher;
 
-    use crate::group::Group;
-    use crate::merkle::Digest;
-    use crate::merkle::F;
+    use crate::stark::group::Group;
+    use crate::stark::merkle::Digest;
+    use crate::stark::merkle::F;
 
     const HEIGHT: usize = 10;
     lazy_static! {

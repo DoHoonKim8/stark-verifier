@@ -1,4 +1,4 @@
-use crate::merkle::{Digest, MerkleTreeCircuit, D, F};
+use crate::stark::merkle::{Digest, MerkleTreeCircuit, D, F};
 use anyhow::Result;
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
@@ -80,7 +80,7 @@ impl MerkleTreeCircuit {
 
 #[cfg(test)]
 mod tests {
-    use crate::merkle::{Digest, MerkleTreeCircuit, C, D, F};
+    use crate::stark::merkle::{Digest, MerkleTreeCircuit, C, D, F};
     use anyhow::Result;
     use plonky2::field::types::{Field, Sample};
     use plonky2::hash::{merkle_tree::MerkleTree, poseidon::PoseidonHash};

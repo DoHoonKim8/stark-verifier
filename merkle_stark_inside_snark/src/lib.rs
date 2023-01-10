@@ -1,3 +1,2 @@
-pub mod group;
-pub mod merkle;
-pub mod recursion;
+pub mod snark;
+pub mod stark;
