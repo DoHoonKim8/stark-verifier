@@ -12,6 +12,11 @@ use plonky2::{
         proof::ProofWithPublicInputs,
     },
 };
+use std::time::Instant;
+
+fn report_elapsed(now: Instant) {
+    println!("{}", format!("Took {} seconds", now.elapsed().as_secs()));
+}
 
 pub struct Group(MerkleTree<F, PoseidonHash>);
 
@@ -32,6 +37,7 @@ impl Group {
 
     // Generates dummy Merkle tree
     pub fn new(public_keys: &Vec<Vec<F>>) -> Self {
+        println!("{}", public_keys.len());
         Self(MerkleTree::new(public_keys.clone(), 0))
     }
 
@@ -61,7 +67,9 @@ impl Group {
         );
 
         let data: CircuitData<F, C, D> = builder.build();
+        let now = Instant::now();
         let proof = data.prove(pw).unwrap();
+        report_elapsed(now);
         (data, proof)
     }
 
@@ -86,7 +94,7 @@ mod tests {
     use crate::stark::merkle::Digest;
     use crate::stark::merkle::F;
 
-    const HEIGHT: usize = 10;
+    const HEIGHT: usize = 15;
     lazy_static! {
         static ref KEYS: (Vec<Digest>, Vec<Vec<F>>) = Group::gen_keys(HEIGHT);
         static ref GROUP: Group = Group::new(&KEYS.1);
