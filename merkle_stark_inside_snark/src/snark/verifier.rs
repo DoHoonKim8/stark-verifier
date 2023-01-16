@@ -1,13 +1,10 @@
-use crate::snark::goldilocks::GoldilocksField;
 use halo2_proofs::{
     arithmetic::FieldExt,
     circuit::{floor_planner::V1, *},
     plonk::*,
 };
-use halo2wrong_ecc::{
-    maingate::{MainGate, MainGateConfig, RangeChip, RangeConfig},
-    EccConfig,
-};
+use halo2curves::goldilocks::GoldilocksField;
+use halo2wrong_ecc::maingate::{MainGate, MainGateConfig, RangeChip, RangeConfig};
 use poseidon::Spec;
 use std::marker::PhantomData;
 
@@ -32,10 +29,6 @@ impl<F: FieldExt> VerifierConfig<F> {
             range_config,
             _marker: PhantomData,
         }
-    }
-
-    pub fn ecc_chip_config(&self) -> EccConfig {
-        EccConfig::new(self.range_config.clone(), self.main_gate_config.clone())
     }
 }
 
