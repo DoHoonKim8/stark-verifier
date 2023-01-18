@@ -3,9 +3,8 @@ use halo2_proofs::{
     circuit::{floor_planner::V1, *},
     plonk::*,
 };
-use halo2curves::goldilocks::GoldilocksField;
-use halo2wrong_ecc::maingate::{MainGate, MainGateConfig, RangeChip, RangeConfig};
-use poseidon::Spec;
+use halo2curves::goldilocks::fp::Goldilocks;
+use halo2wrong_maingate::{MainGate, MainGateConfig, RangeChip, RangeConfig};
 use std::marker::PhantomData;
 
 #[derive(Clone)]
@@ -35,22 +34,22 @@ impl<F: FieldExt> VerifierConfig<F> {
 #[derive(Clone)]
 struct Verifier {}
 
-impl Circuit<GoldilocksField> for Verifier {
-    type Config = VerifierConfig<GoldilocksField>;
+impl Circuit<Goldilocks> for Verifier {
+    type Config = VerifierConfig<Goldilocks>;
     type FloorPlanner = V1;
 
     fn without_witnesses(&self) -> Self {
         todo!()
     }
 
-    fn configure(meta: &mut ConstraintSystem<GoldilocksField>) -> Self::Config {
+    fn configure(meta: &mut ConstraintSystem<Goldilocks>) -> Self::Config {
         todo!()
     }
 
     fn synthesize(
         &self,
         config: Self::Config,
-        layouter: impl Layouter<GoldilocksField>,
+        layouter: impl Layouter<Goldilocks>,
     ) -> Result<(), Error> {
         todo!()
     }

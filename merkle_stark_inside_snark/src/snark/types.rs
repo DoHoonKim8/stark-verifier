@@ -1,6 +1,8 @@
 /// This module contains Plonky2 types.
+use serde::Deserialize;
 
-pub struct Plonky2ProofAndPI {
+#[derive(Deserialize, Debug)]
+pub struct ProofWithPublicInputs {
     wires_cap: Vec<Vec<String>>,
     plonk_zs_partial_products_cap: Vec<Vec<String>>,
     quotient_polys_cap: Vec<Vec<String>>,
@@ -33,4 +35,9 @@ pub struct Plonky2ProofAndPI {
     fri_pow_witness: String,
 
     public_inputs: Vec<String>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct HashOut {
+    pub elements: [u64; 4],
 }

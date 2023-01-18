@@ -9,12 +9,12 @@ edition = "2021"
 plonky2 = { git = "https://github.com/DoHoonKim8/plonky2" }
 anyhow = "1.0.56"
 lazy_static = "1.4.0"
-pasta_curves = "0.4.0"
 halo2curves = { git = "https://github.com/DoHoonKim8/halo2curves.git" }
 halo2_proofs = { git = "https://github.com/privacy-scaling-explorations/halo2.git", features = ["dev-graph"], tag = "v2022_10_22" }
-halo2wrong_ecc = { git = "https://github.com/privacy-scaling-explorations/halo2wrong.git", package = "ecc" }
 halo2wrong_transcript = { git = "https://github.com/privacy-scaling-explorations/halo2wrong.git", package = "transcript" }
+halo2wrong_maingate = { git = "https://github.com/privacy-scaling-explorations/halo2wrong.git", package = "maingate" }
+halo2wrong = { git = "https://github.com/privacy-scaling-explorations/halo2wrong.git", package = "halo2wrong" }
 poseidon = {git = 'https://github.com/privacy-scaling-explorations/poseidon.git', tag = "v2022_10_22" }
-ff = { version = "0.12.0", features = ["derive"] }
-subtle = "2.4"
 rand = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"

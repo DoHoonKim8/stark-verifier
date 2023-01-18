@@ -1,4 +1,7 @@
-use crate::stark::merkle::{Digest, MerkleTreeCircuit, D, F};
+use crate::{
+    snark::transcript::deserialize_public_inputs_hash,
+    stark::merkle::{Digest, MerkleTreeCircuit, D, F},
+};
 use anyhow::Result;
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
@@ -75,6 +78,16 @@ impl MerkleTreeCircuit {
         data.verify(proof.clone())?;
 
         Ok((proof, data.verifier_only, data.common))
+    }
+
+    /// feed Plonky2 proof to halo2 circuit
+    /// TODO : pass `VerifierOnlyCircuitData`, `CommonCircuitData`
+    pub fn verify_inside_snark<C: GenericConfig<D, F = F>>(proof: ProofWithPublicInputs<F, C, D>) {
+        /// First, check `public_inputs_hash` is the same with the output of `hasher_chip` inside halo2
+        let public_inputs_hash = proof.get_public_inputs_hash();
+
+        let result =
+            deserialize_public_inputs_hash(serde_json::to_string(&public_inputs_hash).unwrap());
     }
 }
 

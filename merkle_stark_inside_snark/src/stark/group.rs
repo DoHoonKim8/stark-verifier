@@ -1,10 +1,10 @@
 use crate::stark::merkle::{Digest, MerkleTreeCircuit, C, D, F};
 use anyhow::Result;
 use plonky2::field::types::Field;
-use plonky2::plonk::config::Hasher;
+use plonky2::plonk::config::{GenericHashOut, Hasher};
 use plonky2::{
     field::types::Sample,
-    hash::{merkle_tree::MerkleTree, poseidon::PoseidonHash},
+    hash::{hash_types::HashOut, merkle_tree::MerkleTree, poseidon::PoseidonHash},
     iop::witness::PartialWitness,
     plonk::{
         circuit_builder::CircuitBuilder,
