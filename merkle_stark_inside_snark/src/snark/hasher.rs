@@ -93,9 +93,10 @@ impl<F: FieldExt, const T: usize, const RATE: usize> HasherChip<F, T, RATE> {
     fn sbox_full(&mut self, ctx: &mut RegionCtx<'_, F>, constants: &[F; T]) -> Result<(), Error> {
         let main_gate = self.main_gate();
         for (word, constant) in self.state.0.iter_mut().zip(constants.iter()) {
-            let t = main_gate.mul(ctx, word, word)?;
-            let t = main_gate.mul(ctx, &t, &t)?;
-            *word = main_gate.mul_add_constant(ctx, &t, word, *constant)?;
+            let word2 = main_gate.mul(ctx, word, word)?;
+            let word4 = main_gate.mul(ctx, &word2, &word2)?;
+            let word6 = main_gate.mul(ctx, &word2, &word4)?;
+            *word = main_gate.mul_add_constant(ctx, &word6, word, *constant)?;
         }
         Ok(())
     }
@@ -105,9 +106,10 @@ impl<F: FieldExt, const T: usize, const RATE: usize> HasherChip<F, T, RATE> {
     fn sbox_part(&mut self, ctx: &mut RegionCtx<'_, F>, constant: F) -> Result<(), Error> {
         let main_gate = self.main_gate();
         let word = &mut self.state.0[0];
-        let t = main_gate.mul(ctx, word, word)?;
-        let t = main_gate.mul(ctx, &t, &t)?;
-        *word = main_gate.mul_add_constant(ctx, &t, word, constant)?;
+        let word2 = main_gate.mul(ctx, word, word)?;
+        let word4 = main_gate.mul(ctx, &word2, &word2)?;
+        let word6 = main_gate.mul(ctx, &word2, &word4)?;
+        *word = main_gate.mul_add_constant(ctx, &word6, word, constant)?;
 
         Ok(())
     }
@@ -124,45 +126,15 @@ impl<F: FieldExt, const T: usize, const RATE: usize> HasherChip<F, T, RATE> {
         pre_constants: &[F; T],
     ) -> Result<(), Error> {
         assert!(inputs.len() < T);
-        let offset = inputs.len() + 1;
         let main_gate = self.main_gate();
 
-        // Add the first constant to the first word
-        self.state.0[0] = self
-            .main_gate()
-            .add_constant(ctx, &self.state.0[0], pre_constants[0])?;
-
-        // Add inputs along with constants
-        for ((word, constant), input) in self
-            .state
-            .0
-            .iter_mut()
-            .skip(1)
-            .zip(pre_constants.iter().skip(1))
-            .zip(inputs.iter())
-        {
-            *word = main_gate.add_with_constant(ctx, word, input, *constant)?;
+        for (word, input) in self.state.0.iter_mut().zip(inputs.iter()) {
+            *word = main_gate.add_constant(ctx, input, F::zero())?;
         }
 
-        // Padding
-        for (i, (word, constant)) in self
-            .state
-            .0
-            .iter_mut()
-            .skip(offset)
-            .zip(pre_constants.iter().skip(offset))
-            .enumerate()
-        {
-            *word = main_gate.add_constant(
-                ctx,
-                word,
-                if i == 0 {
-                    // Mark
-                    *constant + F::one()
-                } else {
-                    *constant
-                },
-            )?;
+        // Add inputs along with constants
+        for (word, constant) in self.state.0.iter_mut().zip(pre_constants.iter()) {
+            *word = main_gate.add_constant(ctx, word, *constant)?;
         }
 
         Ok(())
@@ -281,6 +253,6 @@ impl<F: FieldExt, const T: usize, const RATE: usize> HasherChip<F, T, RATE> {
             self.permutation(ctx, chunk.to_vec())?;
         }
 
-        Ok(self.state.0[1].clone())
+        Ok(self.state.0[0].clone())
     }
 }
