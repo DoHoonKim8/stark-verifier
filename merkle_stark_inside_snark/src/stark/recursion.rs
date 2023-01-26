@@ -1,8 +1,7 @@
 use crate::stark::merkle::{Digest, MerkleTreeCircuit, D, F};
 use anyhow::Result;
-use halo2curves::{goldilocks, FieldExt};
 use plonky2::{
-    field::{goldilocks_field::GoldilocksField, types::PrimeField64},
+    field::goldilocks_field::GoldilocksField,
     gates::noop::NoopGate,
     hash::{merkle_tree::MerkleTree, poseidon::PoseidonHash},
     iop::witness::{PartialWitness, WitnessWrite},
@@ -14,7 +13,7 @@ use plonky2::{
     },
 };
 
-type ProofTuple<F, C, const D: usize> = (
+pub type ProofTuple<F, C, const D: usize> = (
     ProofWithPublicInputs<F, C, D>,
     VerifierOnlyCircuitData<C, D>,
     CommonCircuitData<F, D>,
@@ -76,13 +75,6 @@ impl MerkleTreeCircuit {
         data.verify(proof.clone())?;
 
         Ok((proof, data.verifier_only, data.common))
-    }
-
-    /// feed Plonky2 proof to halo2 circuit
-    /// TODO : pass `VerifierOnlyCircuitData`, `CommonCircuitData`
-    pub fn verify_inside_snark<C: GenericConfig<D, F = F>>(proof: ProofWithPublicInputs<F, C, D>) {
-        /// First, check `public_inputs_hash` is the same with the output of `hasher_chip` inside halo2
-        ()
     }
 }
 
