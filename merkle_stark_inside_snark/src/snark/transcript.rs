@@ -51,7 +51,7 @@ mod tests {
     };
     use halo2curves::{goldilocks::fp::Goldilocks, FieldExt};
     use halo2wrong::RegionCtx;
-    use halo2wrong_maingate::{mock_prover_verify, MainGate, MainGateConfig, MainGateInstructions};
+    use halo2wrong_maingate::{MainGate, MainGateConfig, MainGateInstructions};
     use poseidon::{Poseidon, Spec};
     use rand::rngs::OsRng;
 
@@ -127,7 +127,6 @@ mod tests {
         let spec = Spec::<Goldilocks, 12, 11>::new(8, 22);
 
         let inputs: Vec<Goldilocks> = (0..4).map(|_| Goldilocks::random(OsRng)).collect();
-
         ref_hasher.update(&inputs[..]);
         let expected = ref_hasher.squeeze(1)[0];
 
@@ -138,7 +137,7 @@ mod tests {
             expected: Value::known(expected),
         };
         let instance = vec![vec![]];
-        let _prover = MockProver::run(10, &circuit, instance).unwrap();
+        let _prover = MockProver::run(12, &circuit, instance).unwrap();
         _prover.assert_satisfied()
     }
 }
