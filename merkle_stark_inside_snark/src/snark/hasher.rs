@@ -243,7 +243,11 @@ impl<F: FieldExt, const T: usize, const RATE: usize> HasherChip<F, T, RATE> {
         Ok(())
     }
 
-    pub fn hash(&mut self, ctx: &mut RegionCtx<'_, F>) -> Result<AssignedValue<F>, Error> {
+    pub fn hash(
+        &mut self,
+        ctx: &mut RegionCtx<'_, F>,
+        num_outputs: usize,
+    ) -> Result<Vec<AssignedValue<F>>, Error> {
         // Get elements to be hashed
         let input_elements = self.absorbing.clone();
         // Flush the input que
@@ -253,6 +257,15 @@ impl<F: FieldExt, const T: usize, const RATE: usize> HasherChip<F, T, RATE> {
             self.permutation(ctx, chunk.to_vec())?;
         }
 
-        Ok(self.state.0[0].clone())
+        let mut outputs = Vec::new();
+        loop {
+            for item in self.state.0.iter().take(RATE) {
+                outputs.push(item.clone());
+                if outputs.len() == num_outputs {
+                    return Ok(outputs);
+                }
+            }
+            self.permutation(ctx, Vec::new())?;
+        }
     }
 }

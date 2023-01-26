@@ -35,14 +35,19 @@ impl<N: FieldExt, const T: usize, const RATE: usize> TranscriptChip<N, T, RATE> 
     }
 
     /// Constrain squeezing new challenge
-    pub fn squeeze(&mut self, ctx: &mut RegionCtx<'_, N>) -> Result<AssignedValue<N>, Error> {
-        self.hasher_chip.hash(ctx)
+    pub fn squeeze(
+        &mut self,
+        ctx: &mut RegionCtx<'_, N>,
+        num_outputs: usize,
+    ) -> Result<Vec<AssignedValue<N>>, Error> {
+        self.hasher_chip.hash(ctx, num_outputs)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::snark::transcript::TranscriptChip;
+    use crate::stark::mock;
     use halo2_proofs::{
         arithmetic::Field,
         circuit::{Layouter, SimpleFloorPlanner, Value},
@@ -52,6 +57,10 @@ mod tests {
     use halo2curves::{goldilocks::fp::Goldilocks, FieldExt};
     use halo2wrong::RegionCtx;
     use halo2wrong_maingate::{MainGate, MainGateConfig, MainGateInstructions};
+    use plonky2::{
+        field::types::PrimeField64,
+        plonk::config::{GenericHashOut, Hasher},
+    };
     use poseidon::{Poseidon, Spec};
     use rand::rngs::OsRng;
 
@@ -70,8 +79,9 @@ mod tests {
     struct TestCircuit<F: FieldExt, const T: usize, const T_MINUS_ONE: usize> {
         spec: Spec<F, T, T_MINUS_ONE>,
         n: usize,
+        num_output: usize,
         inputs: Value<Vec<F>>,
-        expected: Value<F>,
+        expected: Value<Vec<F>>,
     }
 
     impl Circuit<Goldilocks> for TestCircuit<Goldilocks, 12, 11> {
@@ -105,9 +115,15 @@ mod tests {
                         let e = main_gate.assign_value(ctx, e.map(|e| *e))?;
                         transcript_chip.write_scalar(&e);
                     }
-                    let challenge = transcript_chip.squeeze(ctx)?;
-                    let expected = main_gate.assign_value(ctx, self.expected)?;
-                    main_gate.assert_equal(ctx, &challenge, &expected)?;
+
+                    let challenges = transcript_chip.squeeze(ctx, self.num_output)?;
+                    for (challenge, expected) in challenges
+                        .iter()
+                        .zip(self.expected.as_ref().transpose_vec(self.num_output))
+                    {
+                        let expected = main_gate.assign_value(ctx, expected.map(|e| *e))?;
+                        main_gate.assert_equal(ctx, &challenge, &expected)?;
+                    }
 
                     Ok(())
                 },
@@ -122,22 +138,54 @@ mod tests {
     }
 
     #[test]
-    fn test_poseidon() {
+    fn test_hasher_chip_against_ref_hasher() {
         let mut ref_hasher = Poseidon::<Goldilocks, 12, 8, 11>::new(8, 22);
         let spec = Spec::<Goldilocks, 12, 11>::new(8, 22);
 
         let inputs: Vec<Goldilocks> = (0..4).map(|_| Goldilocks::random(OsRng)).collect();
         ref_hasher.update(&inputs[..]);
-        let expected = ref_hasher.squeeze(1)[0];
+        let expected = ref_hasher.squeeze(1);
 
         let circuit = TestCircuit {
             spec,
             n: inputs.len(),
+            num_output: 1,
             inputs: Value::known(inputs),
             expected: Value::known(expected),
         };
         let instance = vec![vec![]];
         let _prover = MockProver::run(12, &circuit, instance).unwrap();
         _prover.assert_satisfied()
+    }
+
+    #[test]
+    fn test_hasher_chip_for_public_inputs() -> anyhow::Result<()> {
+        let (proof, _, _) = mock::gen_mock_proof()?;
+        let spec = Spec::<Goldilocks, 12, 11>::new(8, 22);
+
+        let inputs = proof
+            .public_inputs
+            .iter()
+            .map(|f| Goldilocks::from(f.to_canonical_u64()))
+            .collect::<Vec<Goldilocks>>();
+        let expected = proof
+            .get_public_inputs_hash()
+            .to_vec()
+            .iter()
+            .map(|f| Goldilocks::from(f.to_noncanonical_u64()))
+            .collect::<Vec<Goldilocks>>();
+
+        let circuit = TestCircuit {
+            spec,
+            n: inputs.len(),
+            num_output: expected.len(),
+            inputs: Value::known(inputs),
+            expected: Value::known(expected),
+        };
+        let instance = vec![vec![]];
+        let _prover = MockProver::run(12, &circuit, instance).unwrap();
+        _prover.assert_satisfied();
+
+        Ok(())
     }
 }
