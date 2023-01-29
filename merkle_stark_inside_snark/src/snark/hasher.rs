@@ -257,7 +257,7 @@ impl<F: FieldExt, const T: usize, const RATE: usize> HasherChip<F, T, RATE> {
             self.permutation(ctx, chunk.to_vec())?;
         }
 
-        let mut outputs = Vec::new();
+        let mut outputs = vec![];
         loop {
             for item in self.state.0.iter().take(RATE) {
                 outputs.push(item.clone());

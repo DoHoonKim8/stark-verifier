@@ -57,10 +57,7 @@ mod tests {
     use halo2curves::{goldilocks::fp::Goldilocks, FieldExt};
     use halo2wrong::RegionCtx;
     use halo2wrong_maingate::{MainGate, MainGateConfig, MainGateInstructions};
-    use plonky2::{
-        field::types::PrimeField64,
-        plonk::config::{GenericHashOut, Hasher},
-    };
+    use plonky2::plonk::config::GenericHashOut;
     use poseidon::{Poseidon, Spec};
     use rand::rngs::OsRng;
 
@@ -160,19 +157,20 @@ mod tests {
 
     #[test]
     fn test_hasher_chip_for_public_inputs() -> anyhow::Result<()> {
-        let (proof, _, _) = mock::gen_mock_proof()?;
+        let (proof, _, _) = mock::gen_dummy_proof()?;
         let spec = Spec::<Goldilocks, 12, 11>::new(8, 22);
 
         let inputs = proof
             .public_inputs
             .iter()
-            .map(|f| Goldilocks::from(f.to_canonical_u64()))
+            .map(|f| Goldilocks::from(f.0))
             .collect::<Vec<Goldilocks>>();
+
         let expected = proof
             .get_public_inputs_hash()
             .to_vec()
             .iter()
-            .map(|f| Goldilocks::from(f.to_noncanonical_u64()))
+            .map(|f| Goldilocks::from(f.0))
             .collect::<Vec<Goldilocks>>();
 
         let circuit = TestCircuit {

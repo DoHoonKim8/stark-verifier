@@ -1,14 +1,55 @@
 use crate::stark::merkle::{Digest, MerkleTreeCircuit, C, D, F};
 use crate::stark::recursion::ProofTuple;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
+use plonky2::field::extension::Extendable;
 use plonky2::field::types::{Field, Sample};
+use plonky2::gates::noop::NoopGate;
+use plonky2::hash::hash_types::RichField;
 use plonky2::hash::{merkle_tree::MerkleTree, poseidon::PoseidonHash};
 use plonky2::iop::witness::PartialWitness;
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData};
+use plonky2::plonk::config::GenericConfig;
 use plonky2::plonk::config::Hasher;
+use plonky2::plonk::prover::prove;
+use plonky2::util::timing::TimingTree;
 
-pub fn gen_mock_proof() -> Result<ProofTuple<F, C, D>> {
+/// Creates a dummy proof which should have `2 ** log2_size` rows.
+fn dummy_proof<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>(
+    config: &CircuitConfig,
+    log2_size: usize,
+) -> Result<ProofTuple<F, C, D>> {
+    // 'size' is in degree, but we want number of noop gates. A non-zero amount of padding will be added and size will be rounded to the next power of two. To hit our target size, we go just under the previous power of two and hope padding is less than half the proof.
+    let num_dummy_gates = match log2_size {
+        0 => return Err(anyhow!("size must be at least 1")),
+        1 => 0,
+        2 => 1,
+        n => (1 << (n - 1)) + 1,
+    };
+    let mut builder = CircuitBuilder::<F, D>::new(config.clone());
+    for _ in 0..num_dummy_gates {
+        builder.add_gate(NoopGate, vec![]);
+    }
+    builder.print_gate_counts(0);
+
+    let data = builder.build::<C>();
+    let inputs = PartialWitness::new();
+
+    let mut timing = TimingTree::default();
+    let proof = prove(&data.prover_only, &data.common, inputs, &mut timing)?;
+    timing.print();
+    data.verify(proof.clone())?;
+
+    Ok((proof, data.verifier_only, data.common))
+}
+
+pub fn gen_dummy_proof() -> Result<ProofTuple<F, C, D>> {
+    let config = CircuitConfig::standard_recursion_zk_config();
+    let log2_size = 5;
+    dummy_proof::<F, C, D>(&config, log2_size)
+}
+
+pub fn gen_recursive_proof() -> Result<ProofTuple<F, C, D>> {
     let n = 1 << 10;
     let private_keys: Vec<Digest> = (0..n).map(|_| F::rand_array()).collect();
     let public_keys: Vec<Vec<F>> = private_keys
