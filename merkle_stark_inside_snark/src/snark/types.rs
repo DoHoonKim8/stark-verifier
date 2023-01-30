@@ -1,23 +1,23 @@
+use halo2_proofs::circuit::Value;
 /// This module contains Plonky2 types encoded into halo2 circuit.
 use halo2curves::FieldExt;
-use halo2_proofs::circuit::Value;
 
 #[derive(Debug)]
 pub struct MerkleCapValues<F: FieldExt>(pub Vec<[Value<F>; 4]>);
 
 /// Contains assigned values that represent extension field value
 #[derive(Debug)]
-pub struct ExtensionFieldValues<F: FieldExt, const D: usize>(pub [Value<F>; D]);
+pub struct ExtensionFieldValue<F: FieldExt, const D: usize>(pub [Value<F>; D]);
 
 #[derive(Debug)]
 pub struct OpeningSetValues<F: FieldExt, const D: usize> {
-    pub constants: Vec<ExtensionFieldValues<F, D>>,
-    pub plonk_sigmas: Vec<ExtensionFieldValues<F, D>>,
-    pub wires: Vec<ExtensionFieldValues<F, D>>,
-    pub plonk_zs: Vec<ExtensionFieldValues<F, D>>,
-    pub plonk_zs_next: Vec<ExtensionFieldValues<F, D>>,
-    pub partial_products: Vec<ExtensionFieldValues<F, D>>,
-    pub quotient_polys: Vec<ExtensionFieldValues<F, D>>,
+    pub constants: Vec<ExtensionFieldValue<F, D>>,
+    pub plonk_sigmas: Vec<ExtensionFieldValue<F, D>>,
+    pub wires: Vec<ExtensionFieldValue<F, D>>,
+    pub plonk_zs: Vec<ExtensionFieldValue<F, D>>,
+    pub plonk_zs_next: Vec<ExtensionFieldValue<F, D>>,
+    pub partial_products: Vec<ExtensionFieldValue<F, D>>,
+    pub quotient_polys: Vec<ExtensionFieldValue<F, D>>,
 }
 
 #[derive(Debug)]
@@ -32,7 +32,7 @@ pub struct FriInitialTreeProofValues<F: FieldExt> {
 
 #[derive(Debug)]
 pub struct FriQueryStepValues<F: FieldExt, const D: usize> {
-    pub evals: Vec<ExtensionFieldValues<F, D>>,
+    pub evals: Vec<ExtensionFieldValue<F, D>>,
     pub merkle_proof: MerkleProofValues<F>,
 }
 
@@ -43,7 +43,9 @@ pub struct FriQueryRoundValues<F: FieldExt, const D: usize> {
 }
 
 #[derive(Debug)]
-pub struct PolynomialCoeffsExtValues<F: FieldExt, const D: usize>(pub Vec<ExtensionFieldValues<F, D>>);
+pub struct PolynomialCoeffsExtValues<F: FieldExt, const D: usize>(
+    pub Vec<ExtensionFieldValue<F, D>>,
+);
 
 #[derive(Debug)]
 pub struct FriProofValues<F: FieldExt, const D: usize> {
