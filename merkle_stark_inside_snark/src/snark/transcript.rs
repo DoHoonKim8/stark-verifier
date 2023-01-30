@@ -1,18 +1,9 @@
 use crate::snark::hasher::HasherChip;
-use crate::snark::types::{HashOut, ProofWithPublicInputs};
 use halo2_proofs::arithmetic::FieldExt;
 use halo2_proofs::plonk::Error;
 use halo2wrong::RegionCtx;
 use halo2wrong_maingate::{AssignedValue, MainGateConfig};
 use poseidon::Spec;
-
-pub fn deserialize_proof(proof: String) -> ProofWithPublicInputs {
-    serde_json::from_str(&proof).unwrap()
-}
-
-pub fn deserialize_public_inputs_hash(public_inputs_hash: String) -> HashOut {
-    serde_json::from_str(&public_inputs_hash).unwrap()
-}
 
 pub struct TranscriptChip<N: FieldExt, const T: usize, const RATE: usize> {
     hasher_chip: HasherChip<N, T, RATE>,
