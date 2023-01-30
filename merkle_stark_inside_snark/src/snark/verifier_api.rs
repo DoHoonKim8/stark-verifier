@@ -8,11 +8,13 @@ use plonky2::hash::merkle_proofs::MerkleProof;
 use plonky2::hash::merkle_tree::MerkleCap;
 use plonky2::hash::poseidon::PoseidonHash;
 use plonky2::plonk::config::{GenericConfig, GenericHashOut};
+use poseidon::Spec;
 
 use super::types::{
     ExtensionFieldValue, FriInitialTreeProofValues, FriQueryRoundValues, FriQueryStepValues,
-    MerkleCapValues, MerkleProofValues,
+    MerkleCapValues, MerkleProofValues, ProofValues, OpeningSetValues, FriProofValues, PolynomialCoeffsExtValues,
 };
+use super::verifier_circuit::run_verifier_circuit;
 
 fn gen_merkle_cap_values(
     merkle_cap: &MerkleCap<GoldilocksField, PoseidonHash>,
@@ -92,6 +94,10 @@ fn gen_fri_query_steps_values(
     }
 }
 
+fn gen_goldilocks_value(e: GoldilocksField) -> Goldilocks {
+    Goldilocks::from(e.0)
+}
+
 /// Public API for generating Halo2 proof for Plonky2 verifier circuit
 /// feed Plonky2 proof, `VerifierOnlyCircuitData`, `CommonCircuitData`
 pub fn verify_inside_snark<C: GenericConfig<2, F = GoldilocksField, Hasher = PoseidonHash>>(
@@ -118,6 +124,15 @@ pub fn verify_inside_snark<C: GenericConfig<2, F = GoldilocksField, Hasher = Pos
         gen_extension_field_values(proof_with_public_inputs.proof.openings.partial_products);
     let quotient_polys =
         gen_extension_field_values(proof_with_public_inputs.proof.openings.quotient_polys);
+    let openings = OpeningSetValues {
+        constants,
+        plonk_sigmas,
+        wires,
+        plonk_zs,
+        plonk_zs_next,
+        partial_products,
+        quotient_polys,
+    };
 
     // opening_proof
     let commit_phase_merkle_values: Vec<MerkleCapValues<Goldilocks>> = proof_with_public_inputs
@@ -146,6 +161,59 @@ pub fn verify_inside_snark<C: GenericConfig<2, F = GoldilocksField, Hasher = Pos
             }
         })
         .collect();
+    let final_poly = PolynomialCoeffsExtValues(
+        gen_extension_field_values(proof_with_public_inputs
+            .proof
+            .opening_proof
+            .final_poly
+            .coeffs
+        )
+    );
+    let pow_witness = Value::known(
+        gen_goldilocks_value(proof_with_public_inputs
+            .proof
+            .opening_proof
+            .pow_witness
+        )
+    );
+    let opening_proof = FriProofValues {
+        commit_phase_merkle_values,
+        query_round_proofs,
+        final_poly,
+        pow_witness
+    };
 
+    let proof = ProofValues {
+        wires_cap,
+        plonk_zs_partial_products_cap,
+        quotient_polys_cap,
 
+        openings,
+        opening_proof,
+    };
+
+    let public_inputs = Value::known(
+        proof_with_public_inputs
+            .public_inputs
+            .iter()
+            .map(|e| gen_goldilocks_value(*e))
+            .collect::<Vec<Goldilocks>>()
+    );
+    let public_inputs_num = proof_with_public_inputs.public_inputs.len();
+
+    let spec = Spec::<Goldilocks, 12, 11>::new(8, 22);
+    run_verifier_circuit(proof, public_inputs, public_inputs_num, spec);
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::stark::mock;
+
+    use super::verify_inside_snark;
+    #[test]
+    fn test_verify_dummy_proof() -> anyhow::Result<()> {
+        let proof = mock::gen_dummy_proof()?;
+        verify_inside_snark(proof);
+        Ok(())
+    }
 }

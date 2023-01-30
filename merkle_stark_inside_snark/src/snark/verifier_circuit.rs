@@ -1,56 +1,106 @@
+use crate::snark::{transcript::TranscriptChip, types::ProofValues};
 use halo2_proofs::{
     arithmetic::FieldExt,
     circuit::{floor_planner::V1, *},
-    plonk::*,
+    plonk::*, dev::MockProver,
 };
 use halo2curves::goldilocks::fp::Goldilocks;
-use halo2wrong_maingate::{MainGate, MainGateConfig, RangeChip, RangeConfig};
+use halo2wrong::RegionCtx;
+use halo2wrong_maingate::{MainGate, MainGateConfig, MainGateInstructions};
+use poseidon::Spec;
 use std::marker::PhantomData;
 
 #[derive(Clone)]
-pub struct VerifierConfig<F: FieldExt> {
+struct VerifierConfig<F: FieldExt> {
     main_gate_config: MainGateConfig,
-    range_config: RangeConfig,
     _marker: PhantomData<F>,
 }
 
 impl<F: FieldExt> VerifierConfig<F> {
-    pub fn new(
-        meta: &mut ConstraintSystem<F>,
-        composition_bits: Vec<usize>,
-        overflow_bits: Vec<usize>,
-    ) -> Self {
+    pub fn new(meta: &mut ConstraintSystem<F>) -> Self {
         let main_gate_config = MainGate::<F>::configure(meta);
-        let range_config =
-            RangeChip::<F>::configure(meta, &main_gate_config, composition_bits, overflow_bits);
         VerifierConfig {
             main_gate_config,
-            range_config,
             _marker: PhantomData,
         }
     }
 }
 
-#[derive(Clone)]
-struct Verifier {}
+struct Verifier {
+    proof: ProofValues<Goldilocks, 2>,
+    public_inputs: Value<Vec<Goldilocks>>,
+    public_inputs_num: usize,
+    spec: Spec<Goldilocks, 12, 11>,
+}
+
+pub fn run_verifier_circuit(
+    proof: ProofValues<Goldilocks, 2>,
+    public_inputs: Value<Vec<Goldilocks>>,
+    public_inputs_num: usize,
+    spec: Spec<Goldilocks, 12, 11>,
+) {
+    let verifier_circuit = Verifier {
+        proof,
+        public_inputs,
+        public_inputs_num,
+        spec,
+    };
+    let instance = vec![vec![]];
+    let _prover = MockProver::run(12, &verifier_circuit, instance).unwrap();
+    _prover.assert_satisfied()
+}
 
 impl Circuit<Goldilocks> for Verifier {
     type Config = VerifierConfig<Goldilocks>;
     type FloorPlanner = V1;
 
     fn without_witnesses(&self) -> Self {
-        todo!()
+        Self {
+            proof: ProofValues::default(),
+            public_inputs: Value::unknown(),
+            public_inputs_num: 0,
+            spec: Spec::new(8, 22),
+        }
     }
 
     fn configure(meta: &mut ConstraintSystem<Goldilocks>) -> Self::Config {
-        todo!()
+        VerifierConfig::new(meta)
     }
 
     fn synthesize(
         &self,
         config: Self::Config,
-        layouter: impl Layouter<Goldilocks>,
+        mut layouter: impl Layouter<Goldilocks>,
     ) -> Result<(), Error> {
-        todo!()
+        let main_gate = MainGate::<Goldilocks>::new(config.main_gate_config.clone());
+
+        layouter.assign_region(
+            || "Plonky2 verifier",
+            |region| {
+                let offset = 0;
+                let ctx = &mut RegionCtx::new(region, offset);
+
+                let mut transcript_chip = TranscriptChip::<Goldilocks, 12, 11>::new(
+                    ctx,
+                    &self.spec,
+                    &config.main_gate_config,
+                )?;
+
+                for pi in self
+                    .public_inputs
+                    .as_ref()
+                    .transpose_vec(self.public_inputs_num)
+                {
+                    let s = main_gate.assign_value(ctx, pi.map(|e| *e))?;
+                    transcript_chip.write_scalar(&s);
+                }
+
+                let public_inputs_hash = transcript_chip.squeeze(ctx, 4);
+
+                Ok(())
+            },
+        )?;
+
+        Ok(())
     }
 }
