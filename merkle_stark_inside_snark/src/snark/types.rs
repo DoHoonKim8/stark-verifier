@@ -1,11 +1,16 @@
-use halo2_proofs::circuit::Value;
 /// This module contains Plonky2 types encoded into halo2 circuit.
+use halo2_proofs::circuit::Value;
 use halo2curves::FieldExt;
 
 #[derive(Debug, Default)]
-pub struct MerkleCapValues<F: FieldExt>(pub Vec<[Value<F>; 4]>);
+pub struct HashValues<F: FieldExt> {
+    pub elements: [Value<F>; 4],
+}
 
-/// Contains values that represent extension field value
+#[derive(Debug, Default)]
+pub struct MerkleCapValues<F: FieldExt>(pub Vec<HashValues<F>>);
+
+/// Contains a extension field value
 #[derive(Debug)]
 pub struct ExtensionFieldValue<F: FieldExt, const D: usize>(pub [Value<F>; D]);
 

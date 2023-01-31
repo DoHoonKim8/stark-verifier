@@ -11,15 +11,16 @@ use plonky2::plonk::config::{GenericConfig, GenericHashOut};
 use poseidon::Spec;
 
 use super::types::{
-    ExtensionFieldValue, FriInitialTreeProofValues, FriQueryRoundValues, FriQueryStepValues,
-    MerkleCapValues, MerkleProofValues, ProofValues, OpeningSetValues, FriProofValues, PolynomialCoeffsExtValues,
+    ExtensionFieldValue, FriInitialTreeProofValues, FriProofValues, FriQueryRoundValues,
+    FriQueryStepValues, HashValues, MerkleCapValues, MerkleProofValues, OpeningSetValues,
+    PolynomialCoeffsExtValues, ProofValues,
 };
 use super::verifier_circuit::run_verifier_circuit;
 
 fn gen_merkle_cap_values(
     merkle_cap: &MerkleCap<GoldilocksField, PoseidonHash>,
 ) -> MerkleCapValues<Goldilocks> {
-    let merkle_cap_values: Vec<[Value<Goldilocks>; 4]> = merkle_cap
+    let merkle_cap_values: Vec<HashValues<Goldilocks>> = merkle_cap
         .0
         .iter()
         .map(|hash| {
@@ -27,7 +28,9 @@ fn gen_merkle_cap_values(
             for (cv, h) in cap_values.iter_mut().zip(hash.to_vec()) {
                 *cv = Value::known(Goldilocks::from(h.0));
             }
-            cap_values
+            HashValues {
+                elements: cap_values,
+            }
         })
         .collect();
     MerkleCapValues(merkle_cap_values)
@@ -161,26 +164,21 @@ pub fn verify_inside_snark<C: GenericConfig<2, F = GoldilocksField, Hasher = Pos
             }
         })
         .collect();
-    let final_poly = PolynomialCoeffsExtValues(
-        gen_extension_field_values(proof_with_public_inputs
+    let final_poly = PolynomialCoeffsExtValues(gen_extension_field_values(
+        proof_with_public_inputs
             .proof
             .opening_proof
             .final_poly
-            .coeffs
-        )
-    );
-    let pow_witness = Value::known(
-        gen_goldilocks_value(proof_with_public_inputs
-            .proof
-            .opening_proof
-            .pow_witness
-        )
-    );
+            .coeffs,
+    ));
+    let pow_witness = Value::known(gen_goldilocks_value(
+        proof_with_public_inputs.proof.opening_proof.pow_witness,
+    ));
     let opening_proof = FriProofValues {
         commit_phase_merkle_values,
         query_round_proofs,
         final_poly,
-        pow_witness
+        pow_witness,
     };
 
     let proof = ProofValues {
@@ -197,7 +195,7 @@ pub fn verify_inside_snark<C: GenericConfig<2, F = GoldilocksField, Hasher = Pos
             .public_inputs
             .iter()
             .map(|e| gen_goldilocks_value(*e))
-            .collect::<Vec<Goldilocks>>()
+            .collect::<Vec<Goldilocks>>(),
     );
     let public_inputs_num = proof_with_public_inputs.public_inputs.len();
 
