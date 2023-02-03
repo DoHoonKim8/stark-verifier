@@ -11,19 +11,22 @@ pub struct AssignedState<F: FieldExt, const T: usize>(pub(super) [AssignedValue<
 /// `HasherChip` is basically responsible for contraining permutation part of
 /// transcript pipeline
 #[derive(Debug, Clone)]
-pub struct HasherChip<F: FieldExt, const T: usize, const RATE: usize> {
+pub struct HasherChip<F: FieldExt, const T: usize, const T_MINUS_ONE: usize, const RATE: usize> {
     state: AssignedState<F, T>,
     absorbing: Vec<AssignedValue<F>>,
-    spec: Spec<F, T, RATE>,
+    output_buffer: Vec<AssignedValue<F>>,
+    spec: Spec<F, T, T_MINUS_ONE>,
     main_gate_config: MainGateConfig,
 }
 
-impl<F: FieldExt, const T: usize, const RATE: usize> HasherChip<F, T, RATE> {
+impl<F: FieldExt, const T: usize, const T_MINUS_ONE: usize, const RATE: usize>
+    HasherChip<F, T, T_MINUS_ONE, RATE>
+{
     // Constructs new hasher chip with assigned initial state
     pub fn new(
         // TODO: we can remove initial state assingment in construction
         ctx: &mut RegionCtx<'_, F>,
-        spec: &Spec<F, T, RATE>,
+        spec: &Spec<F, T, T_MINUS_ONE>,
         main_gate_config: &MainGateConfig,
     ) -> Result<Self, Error> {
         let main_gate = MainGate::<_>::new(main_gate_config.clone());
@@ -38,18 +41,48 @@ impl<F: FieldExt, const T: usize, const RATE: usize> HasherChip<F, T, RATE> {
             state: AssignedState(initial_state.try_into().unwrap()),
             spec: spec.clone(),
             absorbing: vec![],
+            output_buffer: vec![],
             main_gate_config: main_gate_config.clone(),
         })
     }
 
     /// Appends field elements to the absorbation line. It won't perform
     /// permutation here
-    pub fn update(&mut self, elements: &[AssignedValue<F>]) {
-        self.absorbing.extend_from_slice(elements);
+    pub fn update(
+        &mut self,
+        ctx: &mut RegionCtx<'_, F>,
+        element: &AssignedValue<F>,
+    ) -> Result<(), Error> {
+        self.output_buffer.clear();
+
+        self.absorbing.push(element.clone());
+
+        if self.absorbing.len() == RATE {
+            self.duplexing(ctx)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn squeeze(
+        &mut self,
+        ctx: &mut RegionCtx<'_, F>,
+        num_outputs: usize,
+    ) -> Result<Vec<AssignedValue<F>>, Error> {
+        let mut output = vec![];
+        for _i in 0..num_outputs {
+            if !self.absorbing.is_empty() || self.output_buffer.is_empty() {
+                self.duplexing(ctx)?;
+            }
+            output.push(self.output_buffer.pop().unwrap())
+        }
+        Ok(output)
     }
 }
 
-impl<F: FieldExt, const T: usize, const RATE: usize> HasherChip<F, T, RATE> {
+impl<F: FieldExt, const T: usize, const T_MINUS_ONE: usize, const RATE: usize>
+    HasherChip<F, T, T_MINUS_ONE, RATE>
+{
     /// Construct main gate
     pub fn main_gate(&self) -> MainGate<F> {
         MainGate::<_>::new(self.main_gate_config.clone())
@@ -83,12 +116,14 @@ impl<F: FieldExt, const T: usize, const RATE: usize> HasherChip<F, T, RATE> {
         self.spec.mds_matrices().pre_sparse_mds().rows()
     }
 
-    pub(super) fn sparse_matrices(&self) -> Vec<SparseMDSMatrix<F, T, RATE>> {
+    pub(super) fn sparse_matrices(&self) -> Vec<SparseMDSMatrix<F, T, T_MINUS_ONE>> {
         self.spec.mds_matrices().sparse_matrices().clone()
     }
 }
 
-impl<F: FieldExt, const T: usize, const RATE: usize> HasherChip<F, T, RATE> {
+impl<F: FieldExt, const T: usize, const T_MINUS_ONE: usize, const RATE: usize>
+    HasherChip<F, T, T_MINUS_ONE, RATE>
+{
     /// Applies full state sbox then adds constants to each word in the state
     fn sbox_full(&mut self, ctx: &mut RegionCtx<'_, F>, constants: &[F; T]) -> Result<(), Error> {
         let main_gate = self.main_gate();
@@ -114,25 +149,15 @@ impl<F: FieldExt, const T: usize, const RATE: usize> HasherChip<F, T, RATE> {
         Ok(())
     }
 
-    // Adds pre constants and chunked inputs to the state.
+    // Adds pre constants to the state.
     fn absorb_with_pre_constants(
         &mut self,
         ctx: &mut RegionCtx<'_, F>,
-        //
-        // * inputs size equals to RATE: absorbing
-        // * inputs size is less then RATE but not 0: padding
-        // * inputs size is 0: extra permutation to avoid collution
-        inputs: Vec<AssignedValue<F>>,
         pre_constants: &[F; T],
     ) -> Result<(), Error> {
-        assert!(inputs.len() < T);
         let main_gate = self.main_gate();
 
-        for (word, input) in self.state.0.iter_mut().zip(inputs.iter()) {
-            *word = main_gate.add_constant(ctx, input, F::zero())?;
-        }
-
-        // Add inputs along with constants
+        // Add pre constants
         for (word, constant) in self.state.0.iter_mut().zip(pre_constants.iter()) {
             *word = main_gate.add_constant(ctx, word, *constant)?;
         }
@@ -171,7 +196,7 @@ impl<F: FieldExt, const T: usize, const RATE: usize> HasherChip<F, T, RATE> {
     fn apply_sparse_mds(
         &mut self,
         ctx: &mut RegionCtx<'_, F>,
-        mds: &SparseMDSMatrix<F, T, RATE>,
+        mds: &SparseMDSMatrix<F, T, T_MINUS_ONE>,
     ) -> Result<(), Error> {
         // For the 0th word
         let terms = self
@@ -204,11 +229,7 @@ impl<F: FieldExt, const T: usize, const RATE: usize> HasherChip<F, T, RATE> {
     }
 
     /// Constrains poseidon permutation while mutating the given state
-    pub fn permutation(
-        &mut self,
-        ctx: &mut RegionCtx<'_, F>,
-        inputs: Vec<AssignedValue<F>>,
-    ) -> Result<(), Error> {
+    fn permutation(&mut self, ctx: &mut RegionCtx<'_, F>) -> Result<(), Error> {
         let r_f = self.r_f_half();
         let mds = self.mds();
         let pre_sparse_mds = self.pre_sparse_mds();
@@ -216,7 +237,7 @@ impl<F: FieldExt, const T: usize, const RATE: usize> HasherChip<F, T, RATE> {
 
         // First half of the full rounds
         let constants = self.constants_start();
-        self.absorb_with_pre_constants(ctx, inputs, &constants[0])?;
+        self.absorb_with_pre_constants(ctx, &constants[0])?;
         for constants in constants.iter().skip(1).take(r_f - 1) {
             self.sbox_full(ctx, constants)?;
             self.apply_mds(ctx, &mds)?;
@@ -243,18 +264,36 @@ impl<F: FieldExt, const T: usize, const RATE: usize> HasherChip<F, T, RATE> {
         Ok(())
     }
 
+    fn duplexing(&mut self, ctx: &mut RegionCtx<'_, F>) -> Result<(), Error> {
+        let main_gate = self.main_gate();
+
+        for (word, input) in self.state.0.iter_mut().zip(self.absorbing.iter()) {
+            *word = main_gate.add_constant(ctx, input, F::zero())?;
+        }
+        self.absorbing.clear();
+
+        self.permutation(ctx)?;
+
+        self.output_buffer.clear();
+        self.output_buffer.extend_from_slice(&self.state.0[0..RATE]);
+        Ok(())
+    }
+
     pub fn hash(
         &mut self,
         ctx: &mut RegionCtx<'_, F>,
+        inputs: Vec<AssignedValue<F>>,
         num_outputs: usize,
     ) -> Result<Vec<AssignedValue<F>>, Error> {
-        // Get elements to be hashed
-        let input_elements = self.absorbing.clone();
+        let main_gate = self.main_gate();
         // Flush the input que
         self.absorbing.clear();
 
-        for chunk in input_elements.chunks(RATE) {
-            self.permutation(ctx, chunk.to_vec())?;
+        for chunk in inputs.chunks(RATE) {
+            for (word, input) in self.state.0.iter_mut().zip(chunk.iter()) {
+                *word = main_gate.add_constant(ctx, input, F::zero())?;
+            }
+            self.permutation(ctx)?;
         }
 
         let mut outputs = vec![];
@@ -265,7 +304,7 @@ impl<F: FieldExt, const T: usize, const RATE: usize> HasherChip<F, T, RATE> {
                     return Ok(outputs);
                 }
             }
-            self.permutation(ctx, Vec::new())?;
+            self.permutation(ctx)?;
         }
     }
 }
