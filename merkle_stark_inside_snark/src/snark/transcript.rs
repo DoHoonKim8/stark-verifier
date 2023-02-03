@@ -55,7 +55,7 @@ impl<N: FieldExt, const T: usize, const T_MINUS_ONE: usize, const RATE: usize>
 #[cfg(test)]
 mod tests {
     use crate::snark::transcript::TranscriptChip;
-    use crate::snark::types::{self, HashValues, MerkleCapValues};
+    use crate::snark::types::{self, ExtensionFieldValue, HashValues, MerkleCapValues};
     use crate::stark::mock;
     use halo2_proofs::{
         arithmetic::Field,
@@ -66,6 +66,8 @@ mod tests {
     use halo2curves::{goldilocks::fp::Goldilocks, FieldExt};
     use halo2wrong::RegionCtx;
     use halo2wrong_maingate::{MainGate, MainGateConfig, MainGateInstructions};
+    use plonky2::field::extension::quadratic::QuadraticExtension;
+    use plonky2::field::goldilocks_field::GoldilocksField;
     use plonky2::plonk::config::GenericHashOut;
     use poseidon::{Poseidon, Spec};
     use rand::rngs::OsRng;
@@ -197,7 +199,12 @@ mod tests {
         Ok(())
     }
 
-    struct PlonkChallengeTestCircuit<F: FieldExt, const T: usize, const T_MINUS_ONE: usize, const D: usize> {
+    struct PlonkChallengeTestCircuit<
+        F: FieldExt,
+        const T: usize,
+        const T_MINUS_ONE: usize,
+        const D: usize,
+    > {
         spec: Spec<F, T, T_MINUS_ONE>,
         inner_circuit_digest: HashValues<F>,
         public_inputs_hash: HashValues<F>,
@@ -208,6 +215,7 @@ mod tests {
         plonk_betas_expected: Value<Vec<F>>,
         plonk_gammas_expected: Value<Vec<F>>,
         plonk_alphas_expected: Value<Vec<F>>,
+        plonk_zeta_expected: ExtensionFieldValue<F, D>,
     }
 
     impl Circuit<Goldilocks> for PlonkChallengeTestCircuit<Goldilocks, 12, 11, 2> {
@@ -253,7 +261,6 @@ mod tests {
                             transcript_chip.write_scalar(ctx, &e)?;
                         }
                     }
-
                     let plonk_betas = transcript_chip.squeeze(ctx, self.num_challenges)?;
                     let plonk_gammas = transcript_chip.squeeze(ctx, self.num_challenges)?;
 
@@ -283,7 +290,6 @@ mod tests {
                             transcript_chip.write_scalar(ctx, &e)?;
                         }
                     }
-
                     let plonk_alphas = transcript_chip.squeeze(ctx, self.num_challenges)?;
 
                     for (actual, expected) in plonk_alphas.iter().zip(
@@ -293,6 +299,21 @@ mod tests {
                             .iter(),
                     ) {
                         let expected = main_gate.assign_value(ctx, expected.map(|e| *e))?;
+                        main_gate.assert_equal(ctx, actual, &expected)?;
+                    }
+
+                    for hash in self.quotient_polys_cap.0.iter() {
+                        for e in hash.elements.iter() {
+                            let e = main_gate.assign_value(ctx, *e)?;
+                            transcript_chip.write_scalar(ctx, &e)?;
+                        }
+                    }
+                    let plonk_zeta = transcript_chip.squeeze(ctx, 2)?;
+
+                    for (actual, expected) in
+                        plonk_zeta.iter().zip(self.plonk_zeta_expected.0.iter())
+                    {
+                        let expected = main_gate.assign_value(ctx, *expected)?;
                         main_gate.assert_equal(ctx, actual, &expected)?;
                     }
 
@@ -345,6 +366,12 @@ mod tests {
                 .collect::<Vec<Goldilocks>>(),
         );
 
+        let plonk_zeta_expected = ExtensionFieldValue::from(
+            (plonk_challenges_expected.plonk_zeta as QuadraticExtension<GoldilocksField>)
+                .0
+                .to_vec(),
+        );
+
         let circuit = PlonkChallengeTestCircuit {
             spec,
             inner_circuit_digest,
@@ -356,6 +383,7 @@ mod tests {
             plonk_betas_expected,
             plonk_gammas_expected,
             plonk_alphas_expected,
+            plonk_zeta_expected,
         };
         let instance = vec![vec![]];
         let _prover = MockProver::run(15, &circuit, instance).unwrap();
