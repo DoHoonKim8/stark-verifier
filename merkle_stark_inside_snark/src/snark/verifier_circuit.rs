@@ -1,8 +1,9 @@
-use crate::snark::{transcript::TranscriptChip, types::ProofValues};
+use crate::snark::{transcript::TranscriptChip, types::proof::ProofValues};
 use halo2_proofs::{
     arithmetic::FieldExt,
     circuit::{floor_planner::V1, *},
-    plonk::*, dev::MockProver,
+    dev::MockProver,
+    plonk::*,
 };
 use halo2curves::goldilocks::fp::Goldilocks;
 use halo2wrong::RegionCtx;
@@ -80,7 +81,7 @@ impl Circuit<Goldilocks> for Verifier {
                 let offset = 0;
                 let ctx = &mut RegionCtx::new(region, offset);
 
-                let mut transcript_chip = TranscriptChip::<Goldilocks, 12, 11>::new(
+                let mut transcript_chip = TranscriptChip::<Goldilocks, 12, 11, 8>::new(
                     ctx,
                     &self.spec,
                     &config.main_gate_config,
@@ -92,7 +93,7 @@ impl Circuit<Goldilocks> for Verifier {
                     .transpose_vec(self.public_inputs_num)
                 {
                     let s = main_gate.assign_value(ctx, pi.map(|e| *e))?;
-                    transcript_chip.write_scalar(&s);
+                    transcript_chip.write_scalar(ctx, &s)?;
                 }
 
                 let public_inputs_hash = transcript_chip.squeeze(ctx, 4);
