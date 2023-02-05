@@ -1,7 +1,6 @@
 use crate::stark::recursion::ProofTuple;
 use halo2_proofs::circuit::Value;
 use halo2curves::goldilocks::fp::Goldilocks;
-use plonky2::field::extension::Extendable;
 use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::hash::poseidon::PoseidonHash;
 use plonky2::plonk::config::GenericConfig;
@@ -13,18 +12,9 @@ use super::types::{
         FriInitialTreeProofValues, FriProofValues, FriQueryRoundValues, FriQueryStepValues,
         OpeningSetValues, PolynomialCoeffsExtValues, ProofValues,
     },
-    ExtensionFieldValue, MerkleCapValues,
+    MerkleCapValues, to_extension_field_values,
 };
 use super::verifier_circuit::run_verifier_circuit;
-
-fn to_extension_field_values(
-    extension_fields: Vec<<GoldilocksField as Extendable<2>>::Extension>,
-) -> Vec<ExtensionFieldValue<Goldilocks, 2>> {
-    extension_fields
-        .iter()
-        .map(|e| ExtensionFieldValue::from(e.0))
-        .collect()
-}
 
 /// Public API for generating Halo2 proof for Plonky2 verifier circuit
 /// feed Plonky2 proof, `VerifierOnlyCircuitData`, `CommonCircuitData`

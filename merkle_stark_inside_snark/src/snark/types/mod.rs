@@ -8,6 +8,7 @@ use plonky2::{
         poseidon::PoseidonHash,
     },
 };
+use plonky2::field::extension::Extendable;
 
 pub mod proof;
 
@@ -62,6 +63,15 @@ impl<const D: usize> From<[GoldilocksField; D]> for ExtensionFieldValue<Goldiloc
         }
         ExtensionFieldValue(elements)
     }
+}
+
+pub fn to_extension_field_values(
+    extension_fields: Vec<<GoldilocksField as Extendable<2>>::Extension>,
+) -> Vec<ExtensionFieldValue<Goldilocks, 2>> {
+    extension_fields
+        .iter()
+        .map(|e| ExtensionFieldValue::from(e.0))
+        .collect()
 }
 
 #[derive(Debug, Default)]
