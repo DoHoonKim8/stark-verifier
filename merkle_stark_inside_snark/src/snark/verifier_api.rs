@@ -1,9 +1,7 @@
 use crate::stark::recursion::ProofTuple;
 use halo2_proofs::circuit::Value;
 use halo2curves::goldilocks::fp::Goldilocks;
-use plonky2::field::goldilocks_field::GoldilocksField;
-use plonky2::hash::poseidon::PoseidonHash;
-use plonky2::plonk::config::GenericConfig;
+use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig};
 use poseidon::Spec;
 
 use super::types::{
@@ -12,15 +10,13 @@ use super::types::{
         FriInitialTreeProofValues, FriProofValues, FriQueryRoundValues, FriQueryStepValues,
         OpeningSetValues, PolynomialCoeffsExtValues, ProofValues,
     },
-    MerkleCapValues, to_extension_field_values,
+    to_extension_field_values, MerkleCapValues, VerificationKeyValues,
 };
 use super::verifier_circuit::run_verifier_circuit;
 
 /// Public API for generating Halo2 proof for Plonky2 verifier circuit
 /// feed Plonky2 proof, `VerifierOnlyCircuitData`, `CommonCircuitData`
-pub fn verify_inside_snark<C: GenericConfig<2, F = GoldilocksField, Hasher = PoseidonHash>>(
-    proof: ProofTuple<GoldilocksField, C, 2>,
-) {
+pub fn verify_inside_snark(proof: ProofTuple<GoldilocksField, PoseidonGoldilocksConfig, 2>) {
     let (proof_with_public_inputs, vd, cd) = proof;
 
     // proof_with_public_inputs -> ProofValues type
@@ -117,9 +113,10 @@ pub fn verify_inside_snark<C: GenericConfig<2, F = GoldilocksField, Hasher = Pos
             .collect::<Vec<Goldilocks>>(),
     );
     let public_inputs_num = proof_with_public_inputs.public_inputs.len();
+    let vk = VerificationKeyValues::from(vd.clone());
 
     let spec = Spec::<Goldilocks, 12, 11>::new(8, 22);
-    run_verifier_circuit(proof, public_inputs, public_inputs_num, spec);
+    run_verifier_circuit(proof, public_inputs, public_inputs_num, vk, spec);
 }
 
 #[cfg(test)]

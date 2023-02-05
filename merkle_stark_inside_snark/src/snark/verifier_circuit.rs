@@ -11,6 +11,8 @@ use halo2wrong_maingate::{MainGate, MainGateConfig, MainGateInstructions};
 use poseidon::Spec;
 use std::marker::PhantomData;
 
+use super::types::VerificationKeyValues;
+
 #[derive(Clone)]
 struct VerifierConfig<F: FieldExt> {
     main_gate_config: MainGateConfig,
@@ -31,6 +33,7 @@ struct Verifier {
     proof: ProofValues<Goldilocks, 2>,
     public_inputs: Value<Vec<Goldilocks>>,
     public_inputs_num: usize,
+    vk: VerificationKeyValues<Goldilocks>,
     spec: Spec<Goldilocks, 12, 11>,
 }
 
@@ -38,12 +41,14 @@ pub fn run_verifier_circuit(
     proof: ProofValues<Goldilocks, 2>,
     public_inputs: Value<Vec<Goldilocks>>,
     public_inputs_num: usize,
+    vk: VerificationKeyValues<Goldilocks>,
     spec: Spec<Goldilocks, 12, 11>,
 ) {
     let verifier_circuit = Verifier {
         proof,
         public_inputs,
         public_inputs_num,
+        vk,
         spec,
     };
     let instance = vec![vec![]];
@@ -60,6 +65,7 @@ impl Circuit<Goldilocks> for Verifier {
             proof: ProofValues::default(),
             public_inputs: Value::unknown(),
             public_inputs_num: 0,
+            vk: VerificationKeyValues::default(),
             spec: Spec::new(8, 22),
         }
     }

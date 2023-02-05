@@ -1,14 +1,18 @@
 use core::ops::Range;
 use halo2_proofs::circuit::Value;
 use halo2curves::{goldilocks::fp::Goldilocks, FieldExt};
+use plonky2::field::extension::Extendable;
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
     hash::{
         hash_types::HashOut, merkle_proofs::MerkleProof, merkle_tree::MerkleCap,
         poseidon::PoseidonHash,
     },
+    plonk::{
+        circuit_data::{CommonCircuitData, VerifierOnlyCircuitData},
+        config::PoseidonGoldilocksConfig,
+    },
 };
-use plonky2::field::extension::Extendable;
 
 pub mod proof;
 
@@ -94,6 +98,17 @@ impl From<MerkleProof<GoldilocksField, PoseidonHash>> for MerkleProofValues<Gold
 pub struct VerificationKeyValues<F: FieldExt> {
     pub constants_sigmas_cap: MerkleCapValues<F>,
     pub circuit_digest: HashValues<F>,
+}
+
+impl From<VerifierOnlyCircuitData<PoseidonGoldilocksConfig, 2>>
+    for VerificationKeyValues<Goldilocks>
+{
+    fn from(value: VerifierOnlyCircuitData<PoseidonGoldilocksConfig, 2>) -> Self {
+        VerificationKeyValues {
+            constants_sigmas_cap: MerkleCapValues::from(value.constants_sigmas_cap),
+            circuit_digest: HashValues::from(value.circuit_digest),
+        }
+    }
 }
 
 #[derive(Debug, Default)]
