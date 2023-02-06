@@ -16,5 +16,3 @@ halo2wrong_maingate = { git = "https://github.com/privacy-scaling-explorations/h
 halo2wrong = { git = "https://github.com/privacy-scaling-explorations/halo2wrong.git", package = "halo2wrong", tag = "v2023_01_18" }
 poseidon = { git = 'https://github.com/DoHoonKim8/poseidon.git' }
 rand = "0.8"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
