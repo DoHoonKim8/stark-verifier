@@ -7,6 +7,7 @@ use plonky2::{
     hash::{hash_types::HashOut, merkle_tree::MerkleCap, poseidon::PoseidonHash},
 };
 
+pub mod assigned;
 pub mod proof;
 pub mod verification_key;
 
