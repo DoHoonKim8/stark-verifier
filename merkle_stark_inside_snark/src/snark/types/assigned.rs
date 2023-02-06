@@ -42,7 +42,7 @@ pub struct AssignedPolynomialCoeffsExtValues<F: FieldExt, const D: usize>(
 );
 
 pub struct AssignedFriProofValues<F: FieldExt, const D: usize> {
-    pub commit_phase_merkle_values: Vec<AssignedMerkleCapValues<F>>,
+    pub commit_phase_merkle_cap_values: Vec<AssignedMerkleCapValues<F>>,
     pub query_round_proofs: Vec<AssignedFriQueryRoundValues<F, D>>,
     pub final_poly: AssignedPolynomialCoeffsExtValues<F, D>,
     pub pow_witness: AssignedValue<F>,
@@ -65,4 +65,11 @@ pub struct AssignedProofWithPisValues<F: FieldExt, const D: usize> {
 pub struct AssignedVerificationKeyValues<F: FieldExt> {
     pub constants_sigmas_cap: AssignedMerkleCapValues<F>,
     pub circuit_digest: AssignedHashValues<F>,
+}
+
+pub struct AssignedProofChallenges<F: FieldExt, const D: usize> {
+    pub plonk_betas: Vec<AssignedValue<F>>,
+    pub plonk_gammas: Vec<AssignedValue<F>>,
+    pub plonk_alphas: Vec<AssignedValue<F>>,
+    pub plonk_zeta: AssignedExtensionFieldValue<F, D>,
 }
