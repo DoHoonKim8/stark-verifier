@@ -1,5 +1,5 @@
 use crate::stark::recursion::ProofTuple;
-use halo2_proofs::circuit::Value;
+use halo2_proofs::{circuit::Value, dev::MockProver};
 use halo2curves::goldilocks::fp::Goldilocks;
 use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig};
 use poseidon::Spec;
@@ -14,7 +14,20 @@ use super::types::{
     verification_key::VerificationKeyValues,
     MerkleCapValues,
 };
-use super::verifier_circuit::run_verifier_circuit;
+use super::verifier_circuit::Verifier;
+
+fn run_verifier_circuit(
+    proof: ProofValues<Goldilocks, 2>,
+    public_inputs: Vec<Goldilocks>,
+    public_inputs_num: usize,
+    vk: VerificationKeyValues<Goldilocks>,
+    spec: Spec<Goldilocks, 12, 11>,
+) {
+    let verifier_circuit = Verifier::new(proof, public_inputs, public_inputs_num, vk, spec);
+    let instance = vec![vec![]];
+    let _prover = MockProver::run(12, &verifier_circuit, instance).unwrap();
+    _prover.assert_satisfied()
+}
 
 /// Public API for generating Halo2 proof for Plonky2 verifier circuit
 /// feed Plonky2 proof, `VerifierOnlyCircuitData`, `CommonCircuitData`

@@ -7,14 +7,21 @@ use halo2_proofs::{
 };
 use halo2curves::goldilocks::fp::Goldilocks;
 use halo2wrong::RegionCtx;
-use halo2wrong_maingate::{MainGate, MainGateConfig, MainGateInstructions};
+use halo2wrong_maingate::{AssignedValue, MainGate, MainGateConfig, MainGateInstructions};
 use poseidon::Spec;
 use std::marker::PhantomData;
 
-use super::types::verification_key::VerificationKeyValues;
+use super::types::{
+    assigned::{
+        self, AssignedFriProofValues, AssignedHashValues, AssignedOpeningSetValues,
+        AssignedProofChallenges, AssignedProofValues, AssignedProofWithPisValues,
+        AssignedVerificationKeyValues,
+    },
+    verification_key::VerificationKeyValues,
+};
 
 #[derive(Clone)]
-struct VerifierConfig<F: FieldExt> {
+pub struct VerifierConfig<F: FieldExt> {
     main_gate_config: MainGateConfig,
     _marker: PhantomData<F>,
 }
@@ -29,7 +36,7 @@ impl<F: FieldExt> VerifierConfig<F> {
     }
 }
 
-struct Verifier {
+pub struct Verifier {
     proof: ProofValues<Goldilocks, 2>,
     public_inputs: Vec<Goldilocks>,
     public_inputs_num: usize,
