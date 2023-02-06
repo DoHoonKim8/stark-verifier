@@ -8,13 +8,10 @@ use plonky2::{
         hash_types::HashOut, merkle_proofs::MerkleProof, merkle_tree::MerkleCap,
         poseidon::PoseidonHash,
     },
-    plonk::{
-        circuit_data::{CommonCircuitData, VerifierOnlyCircuitData},
-        config::PoseidonGoldilocksConfig,
-    },
 };
 
 pub mod proof;
+pub mod verification_key;
 
 pub fn to_goldilocks(e: GoldilocksField) -> Goldilocks {
     Goldilocks::from(e.0)
@@ -91,23 +88,6 @@ impl From<MerkleProof<GoldilocksField, PoseidonHash>> for MerkleProofValues<Gold
             .map(|value| HashValues::from(*value))
             .collect();
         MerkleProofValues { siblings }
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct VerificationKeyValues<F: FieldExt> {
-    pub constants_sigmas_cap: MerkleCapValues<F>,
-    pub circuit_digest: HashValues<F>,
-}
-
-impl From<VerifierOnlyCircuitData<PoseidonGoldilocksConfig, 2>>
-    for VerificationKeyValues<Goldilocks>
-{
-    fn from(value: VerifierOnlyCircuitData<PoseidonGoldilocksConfig, 2>) -> Self {
-        VerificationKeyValues {
-            constants_sigmas_cap: MerkleCapValues::from(value.constants_sigmas_cap),
-            circuit_digest: HashValues::from(value.circuit_digest),
-        }
     }
 }
 

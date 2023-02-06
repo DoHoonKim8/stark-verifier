@@ -10,7 +10,8 @@ use super::types::{
         FriInitialTreeProofValues, FriProofValues, FriQueryRoundValues, FriQueryStepValues,
         OpeningSetValues, PolynomialCoeffsExtValues, ProofValues,
     },
-    to_extension_field_values, MerkleCapValues, VerificationKeyValues,
+    to_extension_field_values, MerkleCapValues,
+    verification_key::VerificationKeyValues,
 };
 use super::verifier_circuit::run_verifier_circuit;
 

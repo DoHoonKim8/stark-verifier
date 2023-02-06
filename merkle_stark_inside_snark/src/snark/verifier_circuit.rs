@@ -11,7 +11,7 @@ use halo2wrong_maingate::{MainGate, MainGateConfig, MainGateInstructions};
 use poseidon::Spec;
 use std::marker::PhantomData;
 
-use super::types::VerificationKeyValues;
+use super::types::verification_key::VerificationKeyValues;
 
 #[derive(Clone)]
 struct VerifierConfig<F: FieldExt> {
@@ -86,23 +86,6 @@ impl Circuit<Goldilocks> for Verifier {
             |region| {
                 let offset = 0;
                 let ctx = &mut RegionCtx::new(region, offset);
-
-                let mut transcript_chip = TranscriptChip::<Goldilocks, 12, 11, 8>::new(
-                    ctx,
-                    &self.spec,
-                    &config.main_gate_config,
-                )?;
-
-                for pi in self
-                    .public_inputs
-                    .as_ref()
-                    .transpose_vec(self.public_inputs_num)
-                {
-                    let s = main_gate.assign_value(ctx, pi.map(|e| *e))?;
-                    transcript_chip.write_scalar(ctx, &s)?;
-                }
-
-                let public_inputs_hash = transcript_chip.squeeze(ctx, 4);
 
                 Ok(())
             },
