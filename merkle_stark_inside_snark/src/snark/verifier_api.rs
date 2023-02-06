@@ -10,8 +10,9 @@ use super::types::{
         FriInitialTreeProofValues, FriProofValues, FriQueryRoundValues, FriQueryStepValues,
         OpeningSetValues, PolynomialCoeffsExtValues, ProofValues,
     },
-    to_extension_field_values, MerkleCapValues,
+    to_extension_field_values,
     verification_key::VerificationKeyValues,
+    MerkleCapValues,
 };
 use super::verifier_circuit::run_verifier_circuit;
 
@@ -106,13 +107,11 @@ pub fn verify_inside_snark(proof: ProofTuple<GoldilocksField, PoseidonGoldilocks
         opening_proof,
     };
 
-    let public_inputs = Value::known(
-        proof_with_public_inputs
-            .public_inputs
-            .iter()
-            .map(|e| types::to_goldilocks(*e))
-            .collect::<Vec<Goldilocks>>(),
-    );
+    let public_inputs = proof_with_public_inputs
+        .public_inputs
+        .iter()
+        .map(|e| types::to_goldilocks(*e))
+        .collect::<Vec<Goldilocks>>();
     let public_inputs_num = proof_with_public_inputs.public_inputs.len();
     let vk = VerificationKeyValues::from(vd.clone());
 

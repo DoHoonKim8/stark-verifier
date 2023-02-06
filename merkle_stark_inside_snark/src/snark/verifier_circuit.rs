@@ -31,7 +31,7 @@ impl<F: FieldExt> VerifierConfig<F> {
 
 struct Verifier {
     proof: ProofValues<Goldilocks, 2>,
-    public_inputs: Value<Vec<Goldilocks>>,
+    public_inputs: Vec<Goldilocks>,
     public_inputs_num: usize,
     vk: VerificationKeyValues<Goldilocks>,
     spec: Spec<Goldilocks, 12, 11>,
@@ -63,7 +63,7 @@ impl Circuit<Goldilocks> for Verifier {
     fn without_witnesses(&self) -> Self {
         Self {
             proof: ProofValues::default(),
-            public_inputs: Value::unknown(),
+            public_inputs: vec![],
             public_inputs_num: 0,
             vk: VerificationKeyValues::default(),
             spec: Spec::new(8, 22),
