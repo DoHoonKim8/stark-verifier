@@ -1,6 +1,7 @@
-use super::{ExtensionFieldValue, MerkleCapValues, MerkleProofValues};
+use super::{ExtensionFieldValue, HashValues, MerkleCapValues};
 use halo2_proofs::circuit::Value;
 use halo2curves::{goldilocks::fp::Goldilocks, FieldExt};
+use plonky2::hash::merkle_proofs::MerkleProof;
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
     fri::proof::{FriInitialTreeProof, FriQueryStep},
@@ -16,6 +17,22 @@ pub struct OpeningSetValues<F: FieldExt, const D: usize> {
     pub plonk_zs_next: Vec<ExtensionFieldValue<F, D>>,
     pub partial_products: Vec<ExtensionFieldValue<F, D>>,
     pub quotient_polys: Vec<ExtensionFieldValue<F, D>>,
+}
+
+#[derive(Debug, Default)]
+pub struct MerkleProofValues<F: FieldExt> {
+    pub siblings: Vec<HashValues<F>>,
+}
+
+impl From<MerkleProof<GoldilocksField, PoseidonHash>> for MerkleProofValues<Goldilocks> {
+    fn from(value: MerkleProof<GoldilocksField, PoseidonHash>) -> Self {
+        let siblings = value
+            .siblings
+            .iter()
+            .map(|value| HashValues::from(*value))
+            .collect();
+        MerkleProofValues { siblings }
+    }
 }
 
 #[derive(Debug, Default)]

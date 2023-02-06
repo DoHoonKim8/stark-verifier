@@ -4,10 +4,7 @@ use halo2curves::{goldilocks::fp::Goldilocks, FieldExt};
 use plonky2::field::extension::Extendable;
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
-    hash::{
-        hash_types::HashOut, merkle_proofs::MerkleProof, merkle_tree::MerkleCap,
-        poseidon::PoseidonHash,
-    },
+    hash::{hash_types::HashOut, merkle_tree::MerkleCap, poseidon::PoseidonHash},
 };
 
 pub mod proof;
@@ -73,22 +70,6 @@ pub fn to_extension_field_values(
         .iter()
         .map(|e| ExtensionFieldValue::from(e.0))
         .collect()
-}
-
-#[derive(Debug, Default)]
-pub struct MerkleProofValues<F: FieldExt> {
-    pub siblings: Vec<HashValues<F>>,
-}
-
-impl From<MerkleProof<GoldilocksField, PoseidonHash>> for MerkleProofValues<Goldilocks> {
-    fn from(value: MerkleProof<GoldilocksField, PoseidonHash>) -> Self {
-        let siblings = value
-            .siblings
-            .iter()
-            .map(|value| HashValues::from(*value))
-            .collect();
-        MerkleProofValues { siblings }
-    }
 }
 
 #[derive(Debug, Default)]
