@@ -176,4 +176,17 @@ impl Verifier {
     ) -> Result<AssignedExtensionFieldValue<Goldilocks, 2>, Error> {
         self.mul_extension(ctx, main_gate_config, x, x)
     }
+
+    pub fn exp_power_of_2_extension(
+        &self,
+        ctx: &mut RegionCtx<'_, Goldilocks>,
+        main_gate_config: &MainGateConfig,
+        mut base: AssignedExtensionFieldValue<Goldilocks, 2>,
+        power_log: usize,
+    ) -> Result<AssignedExtensionFieldValue<Goldilocks, 2>, Error> {
+        for _ in 0..power_log {
+            base = self.square_extension(ctx, main_gate_config, &base)?;
+        }
+        Ok(base)
+    }
 }
