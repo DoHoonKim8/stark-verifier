@@ -366,7 +366,9 @@ mod tests {
                 .collect::<Vec<Goldilocks>>(),
         );
 
-        let plonk_zeta_expected = ExtensionFieldValue::from((plonk_challenges_expected.plonk_zeta as QuadraticExtension<GoldilocksField>).0);
+        let plonk_zeta_expected = ExtensionFieldValue::from(
+            (plonk_challenges_expected.plonk_zeta as QuadraticExtension<GoldilocksField>).0,
+        );
 
         let circuit = PlonkChallengeTestCircuit {
             spec,

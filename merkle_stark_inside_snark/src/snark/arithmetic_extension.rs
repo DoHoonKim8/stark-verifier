@@ -2,10 +2,10 @@ use halo2_proofs::arithmetic::Field;
 use halo2_proofs::plonk::Error;
 use halo2curves::goldilocks::fp::Goldilocks;
 use halo2wrong::RegionCtx;
-use halo2wrong_maingate::{MainGateConfig, MainGateInstructions, AssignedValue};
+use halo2wrong_maingate::{AssignedValue, MainGateConfig, MainGateInstructions};
 
-use crate::snark::verifier_circuit::Verifier;
 use crate::snark::types::assigned::AssignedExtensionFieldValue;
+use crate::snark::verifier_circuit::Verifier;
 
 impl Verifier {
     /// const_0 * multiplicand_0 * multiplicand_1 + const_1 * addend
@@ -51,7 +51,7 @@ impl Verifier {
             Goldilocks::zero(),
             multiplicand_0,
             multiplicand_1,
-            zero
+            zero,
         )
     }
 
@@ -67,7 +67,7 @@ impl Verifier {
             main_gate_config,
             Goldilocks::one(),
             multiplicand_0,
-            multiplicand_1
+            multiplicand_1,
         )
     }
 
@@ -75,7 +75,7 @@ impl Verifier {
         &self,
         ctx: &mut RegionCtx<'_, Goldilocks>,
         main_gate_config: &MainGateConfig,
-        x: AssignedExtensionFieldValue<Goldilocks, 2>
+        x: AssignedExtensionFieldValue<Goldilocks, 2>,
     ) -> Result<AssignedExtensionFieldValue<Goldilocks, 2>, Error> {
         self.mul_extension(ctx, main_gate_config, x, x)
     }
