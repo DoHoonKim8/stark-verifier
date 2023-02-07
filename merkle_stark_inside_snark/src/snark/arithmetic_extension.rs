@@ -66,6 +66,23 @@ impl Verifier {
         Ok(res)
     }
 
+    fn scalar_mul(
+        &self,
+        ctx: &mut RegionCtx<'_, Goldilocks>,
+        main_gate_config: &MainGateConfig,
+        multiplicand: &AssignedExtensionFieldValue<Goldilocks, 2>,
+        scalar: Goldilocks,
+    ) -> Result<AssignedExtensionFieldValue<Goldilocks, 2>, Error> {
+        let main_gate = self.main_gate(main_gate_config);
+        let assigned_scalar = main_gate.assign_constant(ctx, scalar)?;
+        let multiplied = multiplicand
+            .0
+            .iter()
+            .map(|v| main_gate.mul(ctx, v, &assigned_scalar))
+            .collect::<Result<Vec<AssignedValue<Goldilocks>>, Error>>()?;
+        Ok(AssignedExtensionFieldValue(multiplied.try_into().unwrap()))
+    }
+
     /// const_0 * multiplicand_0 * multiplicand_1 + const_1 * addend
     pub fn arithmetic_extension(
         &self,
