@@ -2,6 +2,7 @@ use core::ops::Range;
 use halo2_proofs::circuit::Value;
 use halo2curves::{goldilocks::fp::Goldilocks, FieldExt};
 use plonky2::field::extension::Extendable;
+use plonky2::plonk::circuit_data::CommonCircuitData;
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
     hash::{hash_types::HashOut, merkle_tree::MerkleCap, poseidon::PoseidonHash},
@@ -105,7 +106,7 @@ pub struct SelectorsInfo {
 }
 
 #[derive(Debug, Default)]
-pub struct CommonValues<F: FieldExt> {
+pub struct CommonData<F: FieldExt> {
     pub config: CircuitConfig,
 
     pub fri_params: FriParams,
@@ -114,7 +115,7 @@ pub struct CommonValues<F: FieldExt> {
     /// pub(crate) gates: Vec<GateRef<F, D>>,
 
     /// Information on the circuit's selector polynomials.
-    pub selectors_info: SelectorsInfo,
+    /// pub selectors_info: SelectorsInfo,
 
     /// The degree of the PLONK quotient polynomial.
     pub quotient_degree_factor: usize,
@@ -132,4 +133,32 @@ pub struct CommonValues<F: FieldExt> {
 
     /// The number of partial products needed to compute the `Z` polynomials.
     pub num_partial_products: usize,
+}
+
+impl From<CommonCircuitData<GoldilocksField, 2>> for CommonData<Goldilocks> {
+    fn from(value: CommonCircuitData<GoldilocksField, 2>) -> Self {
+        Self {
+            config: CircuitConfig {
+                num_wires: value.config.num_wires,
+                num_routed_wires: value.config.num_routed_wires,
+                num_constants: value.config.num_constants,
+                use_base_arithmetic_gate: value.config.use_base_arithmetic_gate,
+                security_bits: value.config.security_bits,
+                num_challenges: value.config.num_challenges,
+                zero_knowledge: value.config.zero_knowledge,
+                max_quotient_degree_factor: value.config.max_quotient_degree_factor,
+            },
+            fri_params: FriParams {
+                hiding: value.fri_params.hiding,
+                degree_bits: value.fri_params.degree_bits,
+                reduction_arity_bits: value.fri_params.reduction_arity_bits,
+            },
+            quotient_degree_factor: value.quotient_degree_factor,
+            num_gate_constraints: value.num_gate_constraints,
+            num_constants: value.num_constants,
+            num_public_inputs: value.num_public_inputs,
+            k_is: value.k_is.iter().map(|e| to_goldilocks(*e)).collect(),
+            num_partial_products: value.num_partial_products,
+        }
+    }
 }

@@ -12,7 +12,7 @@ use super::types::{
     },
     to_extension_field_values,
     verification_key::VerificationKeyValues,
-    MerkleCapValues,
+    CommonData, MerkleCapValues,
 };
 use super::verifier_circuit::Verifier;
 
@@ -21,9 +21,17 @@ fn run_verifier_circuit(
     public_inputs: Vec<Goldilocks>,
     public_inputs_num: usize,
     vk: VerificationKeyValues<Goldilocks>,
+    common_data: CommonData<Goldilocks>,
     spec: Spec<Goldilocks, 12, 11>,
 ) {
-    let verifier_circuit = Verifier::new(proof, public_inputs, public_inputs_num, vk, spec);
+    let verifier_circuit = Verifier::new(
+        proof,
+        public_inputs,
+        public_inputs_num,
+        vk,
+        common_data,
+        spec,
+    );
     let instance = vec![vec![]];
     let _prover = MockProver::run(12, &verifier_circuit, instance).unwrap();
     _prover.assert_satisfied()
@@ -127,9 +135,17 @@ pub fn verify_inside_snark(proof: ProofTuple<GoldilocksField, PoseidonGoldilocks
         .collect::<Vec<Goldilocks>>();
     let public_inputs_num = proof_with_public_inputs.public_inputs.len();
     let vk = VerificationKeyValues::from(vd.clone());
+    let common_data = CommonData::from(cd);
 
     let spec = Spec::<Goldilocks, 12, 11>::new(8, 22);
-    run_verifier_circuit(proof, public_inputs, public_inputs_num, vk, spec);
+    run_verifier_circuit(
+        proof,
+        public_inputs,
+        public_inputs_num,
+        vk,
+        common_data,
+        spec,
+    );
 }
 
 #[cfg(test)]

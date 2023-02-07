@@ -17,6 +17,7 @@ use super::types::{
         AssignedVerificationKeyValues,
     },
     verification_key::VerificationKeyValues,
+    CommonData,
 };
 
 #[derive(Clone)]
@@ -40,6 +41,7 @@ pub struct Verifier {
     public_inputs: Vec<Goldilocks>,
     public_inputs_num: usize,
     vk: VerificationKeyValues<Goldilocks>,
+    common_data: CommonData<Goldilocks>,
     spec: Spec<Goldilocks, 12, 11>,
 }
 
@@ -49,6 +51,7 @@ impl Verifier {
         public_inputs: Vec<Goldilocks>,
         public_inputs_num: usize,
         vk: VerificationKeyValues<Goldilocks>,
+        common_data: CommonData<Goldilocks>,
         spec: Spec<Goldilocks, 12, 11>,
     ) -> Verifier {
         Verifier {
@@ -56,6 +59,7 @@ impl Verifier {
             public_inputs,
             public_inputs_num,
             vk,
+            common_data,
             spec,
         }
     }
@@ -178,6 +182,7 @@ impl Circuit<Goldilocks> for Verifier {
             public_inputs: vec![],
             public_inputs_num: 0,
             vk: VerificationKeyValues::default(),
+            common_data: CommonData::default(),
             spec: Spec::new(8, 22),
         }
     }
