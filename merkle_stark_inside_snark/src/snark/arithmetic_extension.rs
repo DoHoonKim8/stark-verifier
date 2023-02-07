@@ -111,8 +111,13 @@ impl Verifier {
         multiplicand_1: &AssignedExtensionFieldValue<Goldilocks, 2>,
         addend: &AssignedExtensionFieldValue<Goldilocks, 2>,
     ) -> Result<AssignedExtensionFieldValue<Goldilocks, 2>, Error> {
-        let main_gate = self.main_gate(main_gate_config);
-        todo!()
+        // multiplicand_0 * multiplicand_1
+        let term_1 = self.mul(ctx, main_gate_config, multiplicand_0, multiplicand_1)?;
+        // const_0 * multiplicand_0 * multiplicand_1
+        let term_1 = self.scalar_mul(ctx, main_gate_config, &term_1, const_0)?;
+        // const_1 * addend
+        let term_2 = self.scalar_mul(ctx, main_gate_config, addend, const_1)?;
+        self.add(ctx, main_gate_config, &term_1, &term_2)
     }
 
     pub fn zero_extension(
