@@ -132,6 +132,19 @@ impl Verifier {
         Ok(AssignedExtensionFieldValue(elements.try_into().unwrap()))
     }
 
+    pub fn one_extension(
+        &self,
+        ctx: &mut RegionCtx<'_, Goldilocks>,
+        main_gate_config: &MainGateConfig,
+    ) -> Result<AssignedExtensionFieldValue<Goldilocks, 2>, Error> {
+        let main_gate = self.main_gate(main_gate_config);
+        let elements = [
+            main_gate.assign_constant(ctx, Goldilocks::one())?,
+            main_gate.assign_constant(ctx, Goldilocks::zero())?,
+        ];
+        Ok(AssignedExtensionFieldValue(elements))
+    }
+
     pub fn mul_extension_with_const(
         &self,
         ctx: &mut RegionCtx<'_, Goldilocks>,
