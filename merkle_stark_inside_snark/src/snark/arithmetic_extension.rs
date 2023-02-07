@@ -4,7 +4,7 @@ use halo2_proofs::plonk::Error;
 use halo2curves::goldilocks::fp::Goldilocks;
 use halo2wrong::RegionCtx;
 use halo2wrong_maingate::{
-    AssignedValue, CombinationOption, MainGate, MainGateConfig, MainGateInstructions, Term,
+    AssignedValue, CombinationOption, MainGateConfig, MainGateInstructions, Term,
 };
 
 use crate::snark::types::assigned::AssignedExtensionFieldValue;
@@ -23,8 +23,8 @@ impl Verifier {
         &self,
         ctx: &mut RegionCtx<'_, Goldilocks>,
         main_gate_config: &MainGateConfig,
-        lhs: AssignedExtensionFieldValue<Goldilocks, 2>,
-        rhs: AssignedExtensionFieldValue<Goldilocks, 2>,
+        lhs: &AssignedExtensionFieldValue<Goldilocks, 2>,
+        rhs: &AssignedExtensionFieldValue<Goldilocks, 2>,
     ) -> Result<AssignedExtensionFieldValue<Goldilocks, 2>, Error> {
         let main_gate = self.main_gate(main_gate_config);
         let zero = Goldilocks::zero();
@@ -64,6 +64,23 @@ impl Verifier {
         let res =
             AssignedExtensionFieldValue([assigned_1.swap_remove(4), assigned_2.swap_remove(4)]);
         Ok(res)
+    }
+
+    fn add(
+        &self,
+        ctx: &mut RegionCtx<'_, Goldilocks>,
+        main_gate_config: &MainGateConfig,
+        addend_0: &AssignedExtensionFieldValue<Goldilocks, 2>,
+        addend_1: &AssignedExtensionFieldValue<Goldilocks, 2>,
+    ) -> Result<AssignedExtensionFieldValue<Goldilocks, 2>, Error> {
+        let main_gate = self.main_gate(main_gate_config);
+        let added = addend_0
+            .0
+            .iter()
+            .zip(addend_1.0.iter())
+            .map(|(addend_0, addend_1)| main_gate.add(ctx, addend_0, addend_1))
+            .collect::<Result<Vec<AssignedValue<Goldilocks>>, Error>>()?;
+        Ok(AssignedExtensionFieldValue(added.try_into().unwrap()))
     }
 
     fn scalar_mul(
