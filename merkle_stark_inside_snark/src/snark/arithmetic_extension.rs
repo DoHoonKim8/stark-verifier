@@ -10,6 +10,7 @@ use halo2wrong_maingate::{
 use crate::snark::types::assigned::AssignedExtensionFieldValue;
 use crate::snark::verifier_circuit::Verifier;
 
+// Layouts Goldilocks quadratic extension field arithmetic constraints
 impl Verifier {
     // lhs[0] * rhs[0] + w * lhs[1] * rhs[1] - res[0] = 0
     // lhs[0] * rhs[1] + lhs[1] * rhs[0] - res[1] = 0
