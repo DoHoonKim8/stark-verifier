@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use halo2_proofs::{plonk::Error, arithmetic::Field};
+use halo2_proofs::{arithmetic::Field, plonk::Error};
 use halo2curves::goldilocks::fp::Goldilocks;
 use halo2wrong::RegionCtx;
 use halo2wrong_maingate::MainGateConfig;
@@ -44,7 +44,7 @@ pub trait CustomGate {
                 let k = verifier.constant_extension(
                     ctx,
                     main_gate_config,
-                    &[Goldilocks::from(i as u64), Goldilocks::zero()]
+                    &[Goldilocks::from(i as u64), Goldilocks::zero()],
                 )?;
                 verifier.sub_extension(ctx, main_gate_config, &f_zeta, &k)
             })
@@ -56,7 +56,7 @@ pub trait CustomGate {
             ctx,
             main_gate_config,
             local_constants,
-            local_wires
+            local_wires,
         )?;
         for (acc, c) in combined_gate_constraints.iter_mut().zip(gate_constraints) {
             *acc = verifier.mul_add_extension(ctx, main_gate_config, &filter, &c, acc)?;

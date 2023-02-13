@@ -191,15 +191,7 @@ impl Verifier {
         c: &AssignedExtensionFieldValue<Goldilocks, 2>,
     ) -> Result<AssignedExtensionFieldValue<Goldilocks, 2>, Error> {
         let one = Goldilocks::one();
-        self.arithmetic_extension(
-            ctx,
-            main_gate_config,
-            one,
-            one,
-            a,
-            b,
-            c
-        )
+        self.arithmetic_extension(ctx, main_gate_config, one, one, a, b, c)
     }
 
     pub fn square_extension(
@@ -231,11 +223,10 @@ impl Verifier {
         terms: Vec<AssignedExtensionFieldValue<Goldilocks, 2>>,
     ) -> Result<AssignedExtensionFieldValue<Goldilocks, 2>, Error> {
         let one = self.one_extension(ctx, main_gate_config)?;
-        let result = terms
-            .into_iter()
-            .fold(one, |acc, term| {
-                self.mul_extension(ctx, main_gate_config, &acc, &term).unwrap()
-            });
+        let result = terms.into_iter().fold(one, |acc, term| {
+            self.mul_extension(ctx, main_gate_config, &acc, &term)
+                .unwrap()
+        });
         Ok(result)
     }
 
@@ -248,15 +239,7 @@ impl Verifier {
     ) -> Result<AssignedExtensionFieldValue<Goldilocks, 2>, Error> {
         let one = Goldilocks::one();
         let one_extension = self.one_extension(ctx, main_gate_config)?;
-        self.arithmetic_extension(
-            ctx,
-            main_gate_config,
-            one,
-            -one,
-            lhs,
-            &one_extension,
-            rhs,
-        )
+        self.arithmetic_extension(ctx, main_gate_config, one, -one, lhs, &one_extension, rhs)
     }
 
     pub fn constant_extension(
@@ -268,9 +251,7 @@ impl Verifier {
         let main_gate = self.main_gate(main_gate_config);
         let elements = constant
             .into_iter()
-            .map(|c| {
-                main_gate.assign_constant(ctx, *c)
-            })
+            .map(|c| main_gate.assign_constant(ctx, *c))
             .collect::<Result<Vec<AssignedValue<Goldilocks>>, Error>>()?;
         Ok(AssignedExtensionFieldValue(elements.try_into().unwrap()))
     }
