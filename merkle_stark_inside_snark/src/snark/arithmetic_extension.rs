@@ -182,6 +182,26 @@ impl Verifier {
         )
     }
 
+    pub fn mul_add_extension(
+        &self,
+        ctx: &mut RegionCtx<'_, Goldilocks>,
+        main_gate_config: &MainGateConfig,
+        a: &AssignedExtensionFieldValue<Goldilocks, 2>,
+        b: &AssignedExtensionFieldValue<Goldilocks, 2>,
+        c: &AssignedExtensionFieldValue<Goldilocks, 2>,
+    ) -> Result<AssignedExtensionFieldValue<Goldilocks, 2>, Error> {
+        let one = Goldilocks::one();
+        self.arithmetic_extension(
+            ctx,
+            main_gate_config,
+            one,
+            one,
+            a,
+            b,
+            c
+        )
+    }
+
     pub fn square_extension(
         &self,
         ctx: &mut RegionCtx<'_, Goldilocks>,
@@ -202,5 +222,56 @@ impl Verifier {
             base = self.square_extension(ctx, main_gate_config, &base)?;
         }
         Ok(base)
+    }
+
+    pub fn mul_many_extension(
+        &self,
+        ctx: &mut RegionCtx<'_, Goldilocks>,
+        main_gate_config: &MainGateConfig,
+        terms: Vec<AssignedExtensionFieldValue<Goldilocks, 2>>,
+    ) -> Result<AssignedExtensionFieldValue<Goldilocks, 2>, Error> {
+        let one = self.one_extension(ctx, main_gate_config)?;
+        let result = terms
+            .into_iter()
+            .fold(one, |acc, term| {
+                self.mul_extension(ctx, main_gate_config, &acc, &term).unwrap()
+            });
+        Ok(result)
+    }
+
+    pub fn sub_extension(
+        &self,
+        ctx: &mut RegionCtx<'_, Goldilocks>,
+        main_gate_config: &MainGateConfig,
+        lhs: &AssignedExtensionFieldValue<Goldilocks, 2>,
+        rhs: &AssignedExtensionFieldValue<Goldilocks, 2>,
+    ) -> Result<AssignedExtensionFieldValue<Goldilocks, 2>, Error> {
+        let one = Goldilocks::one();
+        let one_extension = self.one_extension(ctx, main_gate_config)?;
+        self.arithmetic_extension(
+            ctx,
+            main_gate_config,
+            one,
+            -one,
+            lhs,
+            &one_extension,
+            rhs,
+        )
+    }
+
+    pub fn constant_extension(
+        &self,
+        ctx: &mut RegionCtx<'_, Goldilocks>,
+        main_gate_config: &MainGateConfig,
+        constant: &[Goldilocks; 2],
+    ) -> Result<AssignedExtensionFieldValue<Goldilocks, 2>, Error> {
+        let main_gate = self.main_gate(main_gate_config);
+        let elements = constant
+            .into_iter()
+            .map(|c| {
+                main_gate.assign_constant(ctx, *c)
+            })
+            .collect::<Result<Vec<AssignedValue<Goldilocks>>, Error>>()?;
+        Ok(AssignedExtensionFieldValue(elements.try_into().unwrap()))
     }
 }
