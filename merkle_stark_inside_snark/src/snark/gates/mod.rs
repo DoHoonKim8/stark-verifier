@@ -18,7 +18,7 @@ pub trait CustomGate {
         main_gate_config: &MainGateConfig,
         local_constants: &[AssignedExtensionFieldValue<Goldilocks, 2>],
         local_wires: &[AssignedExtensionFieldValue<Goldilocks, 2>],
-    ) -> Result<Vec<AssignedExtensionFieldValue<Goldilocks, 2>>, Error>;
+    ) -> Vec<AssignedExtensionFieldValue<Goldilocks, 2>>;
 
     /// In Plonky2, each custom gate's constraint is multiplied by filtering polynomial
     /// `j`th gate's constraint is filtered by f_j(x) = \prod_{k=0, k \neq j}^{n-1}(f(x) - k) where
