@@ -3,7 +3,7 @@ use std::ops::Range;
 use crate::snark::gates::CustomGateRef;
 
 use super::to_goldilocks;
-use halo2curves::{goldilocks::fp::Goldilocks};
+use halo2curves::goldilocks::fp::Goldilocks;
 use plonky2::{field::goldilocks_field::GoldilocksField, plonk::circuit_data::CommonCircuitData};
 
 #[derive(Debug, Default)]
@@ -44,7 +44,7 @@ pub struct CommonData {
     pub fri_params: FriParams,
 
     /// The types of gates used in this circuit, along with their prefixes.
-    pub gates: Vec<Box<dyn CustomGate>>,
+    pub gates: Vec<CustomGateRef>,
 
     /// Information on the circuit's selector polynomials.
     pub selectors_info: SelectorsInfo,
@@ -86,7 +86,11 @@ impl From<CommonCircuitData<GoldilocksField, 2>> for CommonData {
                 zero_knowledge: value.config.zero_knowledge,
                 max_quotient_degree_factor: value.config.max_quotient_degree_factor,
             },
-            // gates: value.gates,
+            gates: value
+                .gates
+                .iter()
+                .map(|gate| CustomGateRef::from(gate))
+                .collect(),
             fri_params: FriParams {
                 hiding: value.fri_params.hiding,
                 degree_bits: value.fri_params.degree_bits,
