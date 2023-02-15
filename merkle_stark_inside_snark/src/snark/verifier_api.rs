@@ -6,13 +6,14 @@ use poseidon::Spec;
 
 use super::types::{
     self,
+    common_data::CommonData,
     proof::{
         FriInitialTreeProofValues, FriProofValues, FriQueryRoundValues, FriQueryStepValues,
         OpeningSetValues, PolynomialCoeffsExtValues, ProofValues,
     },
     to_extension_field_values,
     verification_key::VerificationKeyValues,
-    CommonData, MerkleCapValues,
+    MerkleCapValues,
 };
 use super::verifier_circuit::Verifier;
 
@@ -21,7 +22,7 @@ fn run_verifier_circuit(
     public_inputs: Vec<Goldilocks>,
     public_inputs_num: usize,
     vk: VerificationKeyValues<Goldilocks>,
-    common_data: CommonData<Goldilocks>,
+    common_data: CommonData,
     spec: Spec<Goldilocks, 12, 11>,
 ) {
     let verifier_circuit = Verifier::new(

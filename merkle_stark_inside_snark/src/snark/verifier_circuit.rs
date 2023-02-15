@@ -12,12 +12,11 @@ use std::marker::PhantomData;
 
 use super::types::{
     assigned::{
-        self, AssignedFriProofValues, AssignedHashValues, AssignedOpeningSetValues,
-        AssignedProofChallenges, AssignedProofValues, AssignedProofWithPisValues,
-        AssignedVerificationKeyValues,
+        AssignedFriProofValues, AssignedHashValues, AssignedProofChallenges, AssignedProofValues,
+        AssignedProofWithPisValues, AssignedVerificationKeyValues,
     },
+    common_data::CommonData,
     verification_key::VerificationKeyValues,
-    CommonData,
 };
 
 #[derive(Clone)]
@@ -41,7 +40,7 @@ pub struct Verifier {
     public_inputs: Vec<Goldilocks>,
     public_inputs_num: usize,
     vk: VerificationKeyValues<Goldilocks>,
-    common_data: CommonData<Goldilocks>,
+    common_data: CommonData,
     spec: Spec<Goldilocks, 12, 11>,
 }
 
@@ -51,7 +50,7 @@ impl Verifier {
         public_inputs: Vec<Goldilocks>,
         public_inputs_num: usize,
         vk: VerificationKeyValues<Goldilocks>,
-        common_data: CommonData<Goldilocks>,
+        common_data: CommonData,
         spec: Spec<Goldilocks, 12, 11>,
     ) -> Verifier {
         Verifier {

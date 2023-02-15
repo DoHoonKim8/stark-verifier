@@ -1,9 +1,9 @@
 use std::ops::Range;
 
-use crate::snark::gates::CustomGate;
+use crate::snark::gates::CustomGateRef;
 
 use super::to_goldilocks;
-use halo2curves::{goldilocks::fp::Goldilocks, FieldExt};
+use halo2curves::{goldilocks::fp::Goldilocks};
 use plonky2::{field::goldilocks_field::GoldilocksField, plonk::circuit_data::CommonCircuitData};
 
 #[derive(Debug, Default)]
@@ -38,7 +38,7 @@ pub struct SelectorsInfo {
 }
 
 #[derive(Default)]
-pub struct CommonData<F: FieldExt> {
+pub struct CommonData {
     pub config: CircuitConfig,
 
     pub fri_params: FriParams,
@@ -61,19 +61,19 @@ pub struct CommonData<F: FieldExt> {
     pub num_public_inputs: usize,
 
     /// The `{k_i}` valued used in `S_ID_i` in Plonk's permutation argument.
-    pub k_is: Vec<F>,
+    pub k_is: Vec<Goldilocks>,
 
     /// The number of partial products needed to compute the `Z` polynomials.
     pub num_partial_products: usize,
 }
 
-impl<F: FieldExt> CommonData<F> {
+impl CommonData {
     pub const fn degree_bits(&self) -> usize {
         self.fri_params.degree_bits
     }
 }
 
-impl From<CommonCircuitData<GoldilocksField, 2>> for CommonData<Goldilocks> {
+impl From<CommonCircuitData<GoldilocksField, 2>> for CommonData {
     fn from(value: CommonCircuitData<GoldilocksField, 2>) -> Self {
         Self {
             config: CircuitConfig {
