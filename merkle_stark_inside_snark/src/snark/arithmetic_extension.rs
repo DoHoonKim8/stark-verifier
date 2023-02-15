@@ -20,7 +20,7 @@ impl Verifier {
     // | ---    | ---    | -      | ---    | ---    |
     // | lhs[0] | rhs[0] | lhs[1] | rhs[1] | res[0] |
     // | lhs[0] | rhs[1] | lhs[1] | rhs[0] | res[1] |
-    fn mul(
+    pub fn mul(
         &self,
         ctx: &mut RegionCtx<'_, Goldilocks>,
         main_gate_config: &MainGateConfig,
@@ -67,7 +67,7 @@ impl Verifier {
         Ok(res)
     }
 
-    fn add(
+    pub fn add(
         &self,
         ctx: &mut RegionCtx<'_, Goldilocks>,
         main_gate_config: &MainGateConfig,
@@ -84,7 +84,7 @@ impl Verifier {
         Ok(AssignedExtensionFieldValue(added.try_into().unwrap()))
     }
 
-    fn scalar_mul(
+    pub fn scalar_mul(
         &self,
         ctx: &mut RegionCtx<'_, Goldilocks>,
         main_gate_config: &MainGateConfig,

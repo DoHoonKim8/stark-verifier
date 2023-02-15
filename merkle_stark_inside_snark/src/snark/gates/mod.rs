@@ -4,13 +4,16 @@ use halo2_proofs::{arithmetic::Field, plonk::Error};
 use halo2curves::goldilocks::fp::Goldilocks;
 use halo2wrong::RegionCtx;
 use halo2wrong_maingate::MainGateConfig;
+use plonky2::{field::goldilocks_field::GoldilocksField, gates::gate::GateRef};
+
+use self::arithmetic::ArithmeticGateConstrainer;
 
 use super::{types::assigned::AssignedExtensionFieldValue, verifier_circuit::Verifier};
 
-pub mod arithmetic_extension;
+pub mod arithmetic;
 
 /// Represents Plonky2's cutom gate. Evaluate gate constraint in `plonk_zeta` inside halo2 circuit.
-pub trait CustomGate {
+pub trait CustomGateConstrainer {
     fn evaluate_unfiltered_constraint(
         &self,
         verifier: &Verifier,
@@ -18,7 +21,7 @@ pub trait CustomGate {
         main_gate_config: &MainGateConfig,
         local_constants: &[AssignedExtensionFieldValue<Goldilocks, 2>],
         local_wires: &[AssignedExtensionFieldValue<Goldilocks, 2>],
-    ) -> Vec<AssignedExtensionFieldValue<Goldilocks, 2>>;
+    ) -> Result<Vec<AssignedExtensionFieldValue<Goldilocks, 2>>, Error>;
 
     /// In Plonky2, each custom gate's constraint is multiplied by filtering polynomial
     /// `j`th gate's constraint is filtered by f_j(x) = \prod_{k=0, k \neq j}^{n-1}(f(x) - k) where
@@ -36,7 +39,7 @@ pub trait CustomGate {
         combined_gate_constraints: &mut [AssignedExtensionFieldValue<Goldilocks, 2>],
     ) -> Result<(), Error> {
         // f(\zeta)
-        let f_zeta = local_constants[selector_index];
+        let f_zeta = &local_constants[selector_index];
         // \prod_{k=0, k \neq j}^{n-1}(f(\zeta) - k)
         let terms = group_range
             .filter(|&i| i != row)
@@ -62,5 +65,18 @@ pub trait CustomGate {
             *acc = verifier.mul_add_extension(ctx, main_gate_config, &filter, &c, acc)?;
         }
         Ok(())
+    }
+}
+
+pub struct CustomGateRef(pub Box<dyn CustomGateConstrainer>);
+
+impl From<&GateRef<GoldilocksField, 2>> for CustomGateRef {
+    fn from(value: &GateRef<GoldilocksField, 2>) -> Self {
+        match value.0.id().as_str() {
+            "ArithmeticGate" => Self(Box::new(ArithmeticGateConstrainer {
+                num_ops: value.0.num_ops(),
+            })),
+            _ => unimplemented!(),
+        }
     }
 }
