@@ -14,7 +14,7 @@ pub mod arithmetic;
 
 /// Represents Plonky2's cutom gate. Evaluate gate constraint in `plonk_zeta` inside halo2 circuit.
 pub trait CustomGateConstrainer {
-    fn evaluate_unfiltered_constraint(
+    fn eval_unfiltered_constraint(
         &self,
         verifier: &Verifier,
         ctx: &mut RegionCtx<'_, Goldilocks>,
@@ -26,7 +26,7 @@ pub trait CustomGateConstrainer {
     /// In Plonky2, each custom gate's constraint is multiplied by filtering polynomial
     /// `j`th gate's constraint is filtered by f_j(x) = \prod_{k=0, k \neq j}^{n-1}(f(x) - k) where
     /// f(g^i) = j if jth gate is used in ith row
-    fn evaluate_filtered_constraint(
+    fn eval_filtered_constraint(
         &self,
         verifier: &Verifier,
         ctx: &mut RegionCtx<'_, Goldilocks>,
@@ -54,7 +54,7 @@ pub trait CustomGateConstrainer {
             .collect::<Result<Vec<AssignedExtensionFieldValue<Goldilocks, 2>>, Error>>()?;
         let filter = verifier.mul_many_extension(ctx, main_gate_config, terms)?;
 
-        let gate_constraints = self.evaluate_unfiltered_constraint(
+        let gate_constraints = self.eval_unfiltered_constraint(
             verifier,
             ctx,
             main_gate_config,

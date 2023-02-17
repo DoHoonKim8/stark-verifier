@@ -32,7 +32,7 @@ impl ArithmeticGateConstrainer {
 }
 
 impl CustomGateConstrainer for ArithmeticGateConstrainer {
-    fn evaluate_unfiltered_constraint(
+    fn eval_unfiltered_constraint(
         &self,
         verifier: &Verifier,
         ctx: &mut RegionCtx<'_, Goldilocks>,
