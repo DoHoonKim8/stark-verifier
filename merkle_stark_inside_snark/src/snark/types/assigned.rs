@@ -7,6 +7,7 @@ pub struct AssignedHashValues<F: FieldExt> {
 
 pub struct AssignedMerkleCapValues<F: FieldExt>(pub Vec<AssignedHashValues<F>>);
 
+#[derive(Clone)]
 pub struct AssignedExtensionFieldValue<F: FieldExt, const D: usize>(pub [AssignedValue<F>; D]);
 
 pub struct AssignedOpeningSetValues<F: FieldExt, const D: usize> {

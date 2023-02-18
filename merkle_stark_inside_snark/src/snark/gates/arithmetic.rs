@@ -53,7 +53,7 @@ impl CustomGateConstrainer for ArithmeticGateConstrainer {
             let term1 = verifier.mul(ctx, main_gate_config, multiplicand_0, multiplicand_1)?;
             let term1 = verifier.mul(ctx, main_gate_config, &term1, const_0)?;
             let term2 = verifier.mul(ctx, main_gate_config, addend, const_1)?;
-            let computed_output = verifier.add(ctx, main_gate_config, &term1, &term2)?;
+            let computed_output = verifier.add_extension(ctx, main_gate_config, &term1, &term2)?;
 
             constraints.push(verifier.sub_extension(
                 ctx,

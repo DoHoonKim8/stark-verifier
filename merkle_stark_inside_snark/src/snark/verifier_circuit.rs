@@ -108,9 +108,9 @@ impl Verifier {
         &self,
         ctx: &mut RegionCtx<'_, Goldilocks>,
         main_gate_config: &MainGateConfig,
-        public_inputs_hash: AssignedHashValues<Goldilocks>,
-        circuit_digest: AssignedHashValues<Goldilocks>,
-        assigned_proof: AssignedProofValues<Goldilocks, 2>,
+        public_inputs_hash: &AssignedHashValues<Goldilocks>,
+        circuit_digest: &AssignedHashValues<Goldilocks>,
+        assigned_proof: &AssignedProofValues<Goldilocks, 2>,
         num_challenges: usize,
     ) -> Result<AssignedProofChallenges<Goldilocks, 2>, Error> {
         let mut transcript_chip =
@@ -163,10 +163,27 @@ impl Verifier {
 
     fn verify_proof_with_challenges(
         &self,
-        public_inputs_hash: AssignedHashValues<Goldilocks>,
-        challenges: AssignedProofChallenges<Goldilocks, 2>,
-        vk: AssignedVerificationKeyValues<Goldilocks>,
-    ) {
+        ctx: &mut RegionCtx<'_, Goldilocks>,
+        main_gate_config: &MainGateConfig,
+        proof: &AssignedProofValues<Goldilocks, 2>,
+        public_inputs_hash: &AssignedHashValues<Goldilocks>,
+        challenges: &AssignedProofChallenges<Goldilocks, 2>,
+        vk: &AssignedVerificationKeyValues<Goldilocks>,
+    ) -> Result<(), Error> {
+        let one = self.one_extension(ctx, main_gate_config)?;
+        let local_constants = &proof.openings.constants;
+        let local_wires = &proof.openings.wires;
+        let local_zs = &proof.openings.plonk_zs;
+        let next_zs = &proof.openings.plonk_zs_next;
+        let s_sigmas = &proof.openings.plonk_sigmas;
+        let partial_products = &proof.openings.partial_products;
+
+        let zeta_pow_deg = self.exp_power_of_2_extension(
+            ctx,
+            main_gate_config,
+            challenges.plonk_zeta.clone(),
+            self.common_data.degree_bits(),
+        )?;
         todo!()
     }
 }
@@ -211,17 +228,23 @@ impl Circuit<Goldilocks> for Verifier {
                     &config.main_gate_config,
                     &assigned_proof_with_pis.public_inputs,
                 )?;
-                // FIX
-                let num_challenges = 2;
+
                 let challenges = self.get_challenges(
                     ctx,
                     &config.main_gate_config,
-                    public_inputs_hash,
-                    assigned_vk.circuit_digest,
-                    assigned_proof_with_pis.proof,
-                    num_challenges,
+                    &public_inputs_hash,
+                    &assigned_vk.circuit_digest,
+                    &assigned_proof_with_pis.proof,
+                    self.common_data.config.num_challenges,
                 )?;
-
+                self.verify_proof_with_challenges(
+                    ctx,
+                    &config.main_gate_config,
+                    &assigned_proof_with_pis.proof,
+                    &public_inputs_hash,
+                    &challenges,
+                    &assigned_vk,
+                )?;
                 Ok(())
             },
         )?;

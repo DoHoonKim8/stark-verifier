@@ -14,5 +14,6 @@ halo2_proofs = { git = "https://github.com/privacy-scaling-explorations/halo2.gi
 halo2wrong_transcript = { git = "https://github.com/privacy-scaling-explorations/halo2wrong.git", package = "transcript", tag = "v2023_01_18" }
 halo2wrong_maingate = { git = "https://github.com/privacy-scaling-explorations/halo2wrong.git", package = "maingate", tag = "v2023_01_18" }
 halo2wrong = { git = "https://github.com/privacy-scaling-explorations/halo2wrong.git", package = "halo2wrong", tag = "v2023_01_18" }
+itertools = "0.10.0"
 poseidon = { git = 'https://github.com/DoHoonKim8/poseidon.git' }
 rand = "0.8"

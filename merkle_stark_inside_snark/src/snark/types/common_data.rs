@@ -71,6 +71,10 @@ impl CommonData {
     pub const fn degree_bits(&self) -> usize {
         self.fri_params.degree_bits
     }
+
+    pub fn degree(&self) -> usize {
+        1 << self.degree_bits()
+    }
 }
 
 impl From<CommonCircuitData<GoldilocksField, 2>> for CommonData {

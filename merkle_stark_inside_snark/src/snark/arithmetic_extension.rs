@@ -67,7 +67,40 @@ impl Verifier {
         Ok(res)
     }
 
-    pub fn add(
+    /// TODO : impl inverse of Goldilocks quadratic extension
+    // Witness layout:
+    // | A    | B        | C    | D        | E      |
+    // | ---  | ---      | -    | ---      | ---    |
+    // | y[0] | y_inv[0] | y[1] | y_inv[1] |        |
+    // | y[0| | y_inv[1] | y[1| | y_inv[0] |        |
+    // | x[0| | y_inv[0] | x[1| | y_inv[1] | res[0] |
+    // | x[0| | y_inv[1] | x[1| | y_inv[0] | res[1] |
+    pub fn div_add_extension(
+        &self,
+        ctx: &mut RegionCtx<'_, Goldilocks>,
+        main_gate_config: &MainGateConfig,
+        x: &AssignedExtensionFieldValue<Goldilocks, 2>,
+        y: &AssignedExtensionFieldValue<Goldilocks, 2>,
+        z: &AssignedExtensionFieldValue<Goldilocks, 2>,
+    ) -> Result<AssignedExtensionFieldValue<Goldilocks, 2>, Error> {
+        let main_gate = self.main_gate(main_gate_config);
+        let one = [Goldilocks::one(), Goldilocks::zero()];
+        let w = Goldilocks::from(7);
+        todo!()
+    }
+
+    pub fn div_extension(
+        &self,
+        ctx: &mut RegionCtx<'_, Goldilocks>,
+        main_gate_config: &MainGateConfig,
+        x: &AssignedExtensionFieldValue<Goldilocks, 2>,
+        y: &AssignedExtensionFieldValue<Goldilocks, 2>,
+    ) -> Result<AssignedExtensionFieldValue<Goldilocks, 2>, Error> {
+        let zero = self.zero_extension(ctx, main_gate_config)?;
+        self.div_add_extension(ctx, main_gate_config, x, y, &zero)
+    }
+
+    pub fn add_extension(
         &self,
         ctx: &mut RegionCtx<'_, Goldilocks>,
         main_gate_config: &MainGateConfig,
@@ -118,7 +151,7 @@ impl Verifier {
         let term_1 = self.scalar_mul(ctx, main_gate_config, &term_1, const_0)?;
         // const_1 * addend
         let term_2 = self.scalar_mul(ctx, main_gate_config, addend, const_1)?;
-        self.add(ctx, main_gate_config, &term_1, &term_2)
+        self.add_extension(ctx, main_gate_config, &term_1, &term_2)
     }
 
     pub fn zero_extension(
@@ -194,6 +227,18 @@ impl Verifier {
         self.arithmetic_extension(ctx, main_gate_config, one, one, a, b, c)
     }
 
+    pub fn mul_sub_extension(
+        &self,
+        ctx: &mut RegionCtx<'_, Goldilocks>,
+        main_gate_config: &MainGateConfig,
+        a: &AssignedExtensionFieldValue<Goldilocks, 2>,
+        b: &AssignedExtensionFieldValue<Goldilocks, 2>,
+        c: &AssignedExtensionFieldValue<Goldilocks, 2>,
+    ) -> Result<AssignedExtensionFieldValue<Goldilocks, 2>, Error> {
+        let one = Goldilocks::one();
+        self.arithmetic_extension(ctx, main_gate_config, one, -one, a, b, c)
+    }
+
     pub fn square_extension(
         &self,
         ctx: &mut RegionCtx<'_, Goldilocks>,
@@ -254,5 +299,18 @@ impl Verifier {
             .map(|c| main_gate.assign_constant(ctx, *c))
             .collect::<Result<Vec<AssignedValue<Goldilocks>>, Error>>()?;
         Ok(AssignedExtensionFieldValue(elements.try_into().unwrap()))
+    }
+
+    pub fn convert_to_extension(
+        &self,
+        ctx: &mut RegionCtx<'_, Goldilocks>,
+        main_gate_config: &MainGateConfig,
+        value: &AssignedValue<Goldilocks>,
+    ) -> Result<AssignedExtensionFieldValue<Goldilocks, 2>, Error> {
+        let main_gate = self.main_gate(main_gate_config);
+        Ok(AssignedExtensionFieldValue([
+            value.clone(),
+            main_gate.assign_constant(ctx, Goldilocks::zero())?,
+        ]))
     }
 }
