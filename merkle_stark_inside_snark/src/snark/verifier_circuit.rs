@@ -12,7 +12,8 @@ use std::marker::PhantomData;
 
 use super::types::{
     assigned::{
-        AssignedFriProofValues, AssignedHashValues, AssignedProofChallenges, AssignedProofValues,
+        AssignedExtensionFieldValue, AssignedFriProofValues, AssignedHashValues,
+        AssignedMerkleCapValues, AssignedProofChallenges, AssignedProofValues,
         AssignedProofWithPisValues, AssignedVerificationKeyValues,
     },
     common_data::CommonData,
@@ -87,7 +88,39 @@ impl Verifier {
         ctx: &mut RegionCtx<'_, Goldilocks>,
         main_gate_config: &MainGateConfig,
     ) -> Result<AssignedVerificationKeyValues<Goldilocks>, Error> {
-        todo!()
+        let main_gate = self.main_gate(main_gate_config);
+        let constants_sigmas_cap = self
+            .vk
+            .constants_sigmas_cap
+            .0
+            .iter()
+            .map(|hash_value| {
+                let elements = hash_value
+                    .elements
+                    .iter()
+                    .map(|e| main_gate.assign_value(ctx, *e))
+                    .collect::<Result<Vec<AssignedValue<Goldilocks>>, Error>>()
+                    .unwrap()
+                    .try_into()
+                    .unwrap();
+                AssignedHashValues { elements }
+            })
+            .collect::<Vec<AssignedHashValues<Goldilocks>>>();
+        let circuit_digest = self
+            .vk
+            .circuit_digest
+            .elements
+            .iter()
+            .map(|e| main_gate.assign_value(ctx, *e))
+            .collect::<Result<Vec<AssignedValue<Goldilocks>>, Error>>()?
+            .try_into()
+            .unwrap();
+        Ok(AssignedVerificationKeyValues {
+            constants_sigmas_cap: AssignedMerkleCapValues(constants_sigmas_cap),
+            circuit_digest: AssignedHashValues {
+                elements: circuit_digest,
+            },
+        })
     }
 
     fn get_public_inputs_hash(
@@ -158,7 +191,12 @@ impl Verifier {
             }
         }
         let plonk_zeta = transcript_chip.squeeze(ctx, 2)?;
-        todo!()
+        Ok(AssignedProofChallenges {
+            plonk_betas,
+            plonk_gammas,
+            plonk_alphas,
+            plonk_zeta: AssignedExtensionFieldValue(plonk_zeta.try_into().unwrap()),
+        })
     }
 
     fn verify_proof_with_challenges(
@@ -184,7 +222,41 @@ impl Verifier {
             challenges.plonk_zeta.clone(),
             self.common_data.degree_bits(),
         )?;
-        todo!()
+        let vanishing_poly_zeta = self.eval_vanishing_poly(
+            ctx,
+            main_gate_config,
+            &self.common_data,
+            &challenges.plonk_zeta,
+            &zeta_pow_deg,
+            local_constants,
+            local_wires,
+            local_zs,
+            next_zs,
+            partial_products,
+            s_sigmas,
+            &challenges.plonk_betas,
+            &challenges.plonk_gammas,
+            &challenges.plonk_alphas,
+        )?;
+
+        let quotient_polys_zeta = &proof.openings.quotient_polys;
+        let z_h_zeta = self.sub_extension(ctx, main_gate_config, &zeta_pow_deg, &one)?;
+        for (i, chunk) in quotient_polys_zeta
+            .chunks(self.common_data.quotient_degree_factor)
+            .enumerate()
+        {
+            let recombined_quotient =
+                self.reduce_arithmetic(ctx, main_gate_config, &zeta_pow_deg, &chunk.to_vec())?;
+            let computed_vanishing_poly =
+                self.mul_extension(ctx, main_gate_config, &z_h_zeta, &recombined_quotient)?;
+            self.assert_equal_extension(
+                ctx,
+                main_gate_config,
+                &vanishing_poly_zeta[i],
+                &computed_vanishing_poly,
+            )?;
+        }
+        Ok(())
     }
 }
 
@@ -212,8 +284,6 @@ impl Circuit<Goldilocks> for Verifier {
         config: Self::Config,
         mut layouter: impl Layouter<Goldilocks>,
     ) -> Result<(), Error> {
-        let main_gate = MainGate::<Goldilocks>::new(config.main_gate_config.clone());
-
         layouter.assign_region(
             || "Plonky2 verifier",
             |region| {

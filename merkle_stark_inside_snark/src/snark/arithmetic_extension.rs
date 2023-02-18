@@ -328,4 +328,17 @@ impl Verifier {
         });
         Ok(result)
     }
+
+    pub fn assert_equal_extension(
+        &self,
+        ctx: &mut RegionCtx<'_, Goldilocks>,
+        main_gate_config: &MainGateConfig,
+        lhs: &AssignedExtensionFieldValue<Goldilocks, 2>,
+        rhs: &AssignedExtensionFieldValue<Goldilocks, 2>,
+    ) -> Result<(), Error> {
+        let main_gate = self.main_gate(main_gate_config);
+        main_gate.assert_equal(ctx, &lhs.0[0], &rhs.0[0])?;
+        main_gate.assert_equal(ctx, &lhs.0[1], &rhs.0[1])?;
+        Ok(())
+    }
 }
