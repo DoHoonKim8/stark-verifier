@@ -6,10 +6,7 @@ use halo2wrong_maingate::{AssignedValue, MainGateConfig};
 use itertools::Itertools;
 
 use super::{
-    types::{
-        assigned::{AssignedExtensionFieldValue, AssignedHashValues},
-        common_data::CommonData,
-    },
+    types::{assigned::AssignedExtensionFieldValue, common_data::CommonData},
     verifier_circuit::Verifier,
 };
 
@@ -23,7 +20,6 @@ impl Verifier {
         x_pow_deg: &AssignedExtensionFieldValue<Goldilocks, 2>,
         local_constants: &[AssignedExtensionFieldValue<Goldilocks, 2>],
         local_wires: &[AssignedExtensionFieldValue<Goldilocks, 2>],
-        public_inputs_hash: &AssignedHashValues<Goldilocks>,
         local_zs: &[AssignedExtensionFieldValue<Goldilocks, 2>],
         next_zs: &[AssignedExtensionFieldValue<Goldilocks, 2>],
         partial_products: &[AssignedExtensionFieldValue<Goldilocks, 2>],
@@ -121,7 +117,13 @@ impl Verifier {
         ]
         .concat();
 
-        todo!()
+        alphas
+            .iter()
+            .map(|alpha| {
+                let alpha = self.convert_to_extension(ctx, main_gate_config, alpha)?;
+                self.reduce_arithmetic(ctx, main_gate_config, &alpha, &vanishing_terms)
+            })
+            .collect()
     }
 
     fn eval_gate_constraints(

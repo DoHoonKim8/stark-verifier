@@ -313,4 +313,19 @@ impl Verifier {
             main_gate.assign_constant(ctx, Goldilocks::zero())?,
         ]))
     }
+
+    pub fn reduce_arithmetic(
+        &self,
+        ctx: &mut RegionCtx<'_, Goldilocks>,
+        main_gate_config: &MainGateConfig,
+        base: &AssignedExtensionFieldValue<Goldilocks, 2>,
+        terms: &Vec<AssignedExtensionFieldValue<Goldilocks, 2>>,
+    ) -> Result<AssignedExtensionFieldValue<Goldilocks, 2>, Error> {
+        let zero_extension = self.zero_extension(ctx, main_gate_config)?;
+        let result = terms.iter().rev().fold(zero_extension, |acc, term| {
+            self.mul_add_extension(ctx, main_gate_config, &acc, base, term)
+                .unwrap()
+        });
+        Ok(result)
+    }
 }
