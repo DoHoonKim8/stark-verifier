@@ -172,7 +172,7 @@ impl Verifier {
         // L_0(x) = (x^n - 1) / (n * (x - 1))
         //        = (x_pow_deg - 1) / (n * (x - 1))
         let one_extension = self.one_extension(ctx, main_gate_config)?;
-        let neg_one = self.constant_extension(
+        let neg_one_extension = self.constant_extension(
             ctx,
             main_gate_config,
             &[-Goldilocks::one(), Goldilocks::zero()],
@@ -185,7 +185,7 @@ impl Verifier {
             Goldilocks::from(n as u64),
             &x,
             &one_extension,
-            &neg_one,
+            &neg_one_extension,
         )?;
         self.div_extension(ctx, main_gate_config, &zero_poly, &denominator)
     }

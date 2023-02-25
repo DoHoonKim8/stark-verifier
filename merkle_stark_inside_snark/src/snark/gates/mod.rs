@@ -65,7 +65,7 @@ pub trait CustomGateConstrainer {
                     main_gate_config,
                     &[Goldilocks::from(i as u64), Goldilocks::zero()],
                 )?;
-                verifier.sub_extension(ctx, main_gate_config, &f_zeta, &k)
+                verifier.sub_extension(ctx, main_gate_config, &k, &f_zeta)
             })
             .collect::<Result<Vec<AssignedExtensionFieldValue<Goldilocks, 2>>, Error>>()?;
         let filter = verifier.mul_many_extension(ctx, main_gate_config, terms)?;
