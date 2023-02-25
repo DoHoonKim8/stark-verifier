@@ -18,6 +18,7 @@ use super::types::{
     },
     common_data::CommonData,
     verification_key::VerificationKeyValues,
+    HashValues, MerkleCapValues,
 };
 
 #[derive(Clone)]
@@ -80,7 +81,11 @@ impl Verifier {
             .iter()
             .map(|pi| main_gate.assign_constant(ctx, *pi))
             .collect::<Result<Vec<AssignedValue<Goldilocks>>, Error>>()?;
-        todo!()
+        let proof = ProofValues::assign(&self, ctx, main_gate_config, &self.proof)?;
+        Ok(AssignedProofWithPisValues {
+            proof,
+            public_inputs,
+        })
     }
 
     fn assign_verification_key(
@@ -88,38 +93,19 @@ impl Verifier {
         ctx: &mut RegionCtx<'_, Goldilocks>,
         main_gate_config: &MainGateConfig,
     ) -> Result<AssignedVerificationKeyValues<Goldilocks>, Error> {
-        let main_gate = self.main_gate(main_gate_config);
-        let constants_sigmas_cap = self
-            .vk
-            .constants_sigmas_cap
-            .0
-            .iter()
-            .map(|hash_value| {
-                let elements = hash_value
-                    .elements
-                    .iter()
-                    .map(|e| main_gate.assign_value(ctx, *e))
-                    .collect::<Result<Vec<AssignedValue<Goldilocks>>, Error>>()
-                    .unwrap()
-                    .try_into()
-                    .unwrap();
-                AssignedHashValues { elements }
-            })
-            .collect::<Vec<AssignedHashValues<Goldilocks>>>();
-        let circuit_digest = self
-            .vk
-            .circuit_digest
-            .elements
-            .iter()
-            .map(|e| main_gate.assign_value(ctx, *e))
-            .collect::<Result<Vec<AssignedValue<Goldilocks>>, Error>>()?
-            .try_into()
-            .unwrap();
         Ok(AssignedVerificationKeyValues {
-            constants_sigmas_cap: AssignedMerkleCapValues(constants_sigmas_cap),
-            circuit_digest: AssignedHashValues {
-                elements: circuit_digest,
-            },
+            constants_sigmas_cap: MerkleCapValues::assign(
+                &self,
+                ctx,
+                main_gate_config,
+                &self.vk.constants_sigmas_cap,
+            )?,
+            circuit_digest: HashValues::assign(
+                &self,
+                ctx,
+                main_gate_config,
+                &self.vk.circuit_digest,
+            )?,
         })
     }
 
@@ -209,7 +195,7 @@ impl Verifier {
         vk: &AssignedVerificationKeyValues<Goldilocks>,
     ) -> Result<(), Error> {
         let one = self.one_extension(ctx, main_gate_config)?;
-        let local_constants = &proof.openings.constants;
+        let local_constants = &proof.openings.constants.clone();
         let local_wires = &proof.openings.wires;
         let local_zs = &proof.openings.plonk_zs;
         let next_zs = &proof.openings.plonk_zs_next;
@@ -230,6 +216,7 @@ impl Verifier {
             &zeta_pow_deg,
             local_constants,
             local_wires,
+            public_inputs_hash,
             local_zs,
             next_zs,
             partial_products,
@@ -262,7 +249,7 @@ impl Verifier {
 
 impl Circuit<Goldilocks> for Verifier {
     type Config = VerifierConfig<Goldilocks>;
-    type FloorPlanner = V1;
+    type FloorPlanner = SimpleFloorPlanner;
 
     fn without_witnesses(&self) -> Self {
         Self {

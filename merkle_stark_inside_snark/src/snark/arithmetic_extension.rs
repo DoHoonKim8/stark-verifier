@@ -10,6 +10,8 @@ use halo2wrong_maingate::{
 use crate::snark::types::assigned::AssignedExtensionFieldValue;
 use crate::snark::verifier_circuit::Verifier;
 
+use super::goldilocks_extension::QuadraticExtension;
+
 // Layouts Goldilocks quadratic extension field arithmetic constraints
 impl Verifier {
     // lhs[0] * rhs[0] + w * lhs[1] * rhs[1] - res[0] = 0
@@ -33,7 +35,10 @@ impl Verifier {
         let w = Goldilocks::from(7);
         let mut res = [Value::unknown(); 2];
         res[0] = lhs.0[0].value().zip(rhs.0[0].value()).map(|(l, r)| *l * *r)
-            + lhs.0[1].value().zip(rhs.0[1].value()).map(|(l, r)| *l * *r);
+            + lhs.0[1]
+                .value()
+                .zip(rhs.0[1].value())
+                .map(|(l, r)| w * *l * *r);
         res[1] = lhs.0[0].value().zip(rhs.0[1].value()).map(|(l, r)| *l * *r)
             + lhs.0[1].value().zip(rhs.0[0].value()).map(|(l, r)| *l * *r);
 
@@ -67,7 +72,6 @@ impl Verifier {
         Ok(res)
     }
 
-    /// TODO : impl inverse of Goldilocks quadratic extension
     // Witness layout:
     // | A    | B        | C    | D        | E      |
     // | ---  | ---      | -    | ---      | ---    |
@@ -84,9 +88,80 @@ impl Verifier {
         z: &AssignedExtensionFieldValue<Goldilocks, 2>,
     ) -> Result<AssignedExtensionFieldValue<Goldilocks, 2>, Error> {
         let main_gate = self.main_gate(main_gate_config);
-        let one = [Goldilocks::one(), Goldilocks::zero()];
+        let zero = Goldilocks::zero();
+        let one = Goldilocks::one();
         let w = Goldilocks::from(7);
-        todo!()
+
+        let y_inv = y.0[0]
+            .value()
+            .zip(y.0[1].value())
+            .map(|(&hi, &lo)| {
+                let y_inv = QuadraticExtension([hi, lo]).invert().unwrap().0;
+                (y_inv[0], y_inv[1])
+            })
+            .unzip();
+        let mut res = [Value::unknown(); 2];
+        res[0] = x.0[0].value().zip(y_inv.0).map(|(l, r)| *l * r)
+            + x.0[1].value().zip(y_inv.1).map(|(l, r)| w * *l * r);
+        res[1] = x.0[0].value().zip(y_inv.1).map(|(l, r)| *l * r)
+            + x.0[1].value().zip(y_inv.0).map(|(l, r)| *l * r);
+
+        // y[0] * y_inv[0] + w * y[1] * y_inv[1] - 1 = 0
+        main_gate.apply(
+            ctx,
+            [
+                Term::assigned_to_mul(&y.0[0]),
+                Term::unassigned_to_mul(y_inv.0),
+                Term::assigned_to_mul(&y.0[1]),
+                Term::unassigned_to_mul(y_inv.1),
+            ],
+            -one,
+            CombinationOption::OneLinerDoubleMul(w),
+        )?;
+
+        // y[0] * y_inv[1] + y[1] * y_inv[0] = 0
+        main_gate.apply(
+            ctx,
+            [
+                Term::assigned_to_mul(&y.0[0]),
+                Term::unassigned_to_mul(y_inv.1),
+                Term::assigned_to_mul(&y.0[1]),
+                Term::unassigned_to_mul(y_inv.0),
+            ],
+            zero,
+            CombinationOption::OneLinerDoubleMul(one),
+        )?;
+
+        // x[0] * y_inv[0] + w * x[1] * y_inv[1] - res[0] = 0
+        let mut assigned_1 = main_gate.apply(
+            ctx,
+            [
+                Term::assigned_to_mul(&x.0[0]),
+                Term::unassigned_to_mul(y_inv.0),
+                Term::assigned_to_mul(&x.0[1]),
+                Term::unassigned_to_mul(y_inv.1),
+                Term::unassigned_to_sub(res[0]),
+            ],
+            zero,
+            CombinationOption::OneLinerDoubleMul(w),
+        )?;
+
+        // x[0] * y_inv[1] + x[1] * y_inv[0] - res[1] = 0
+        let mut assigned_2 = main_gate.apply(
+            ctx,
+            [
+                Term::assigned_to_mul(&x.0[0]),
+                Term::unassigned_to_mul(y_inv.1),
+                Term::assigned_to_mul(&x.0[1]),
+                Term::unassigned_to_mul(y_inv.0),
+                Term::unassigned_to_sub(res[1]),
+            ],
+            zero,
+            CombinationOption::OneLinerDoubleMul(one),
+        )?;
+        let res =
+            AssignedExtensionFieldValue([assigned_1.swap_remove(4), assigned_2.swap_remove(4)]);
+        Ok(res)
     }
 
     pub fn div_extension(
@@ -146,9 +221,9 @@ impl Verifier {
         addend: &AssignedExtensionFieldValue<Goldilocks, 2>,
     ) -> Result<AssignedExtensionFieldValue<Goldilocks, 2>, Error> {
         // multiplicand_0 * multiplicand_1
-        let term_1 = self.mul(ctx, main_gate_config, multiplicand_0, multiplicand_1)?;
+        let mut term_1 = self.mul(ctx, main_gate_config, multiplicand_0, multiplicand_1)?;
         // const_0 * multiplicand_0 * multiplicand_1
-        let term_1 = self.scalar_mul(ctx, main_gate_config, &term_1, const_0)?;
+        term_1 = self.scalar_mul(ctx, main_gate_config, &term_1, const_0)?;
         // const_1 * addend
         let term_2 = self.scalar_mul(ctx, main_gate_config, addend, const_1)?;
         self.add_extension(ctx, main_gate_config, &term_1, &term_2)

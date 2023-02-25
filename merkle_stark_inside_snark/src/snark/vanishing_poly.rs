@@ -6,7 +6,10 @@ use halo2wrong_maingate::{AssignedValue, MainGateConfig};
 use itertools::Itertools;
 
 use super::{
-    types::{assigned::AssignedExtensionFieldValue, common_data::CommonData},
+    types::{
+        assigned::{AssignedExtensionFieldValue, AssignedHashValues},
+        common_data::CommonData,
+    },
     verifier_circuit::Verifier,
 };
 
@@ -20,6 +23,7 @@ impl Verifier {
         x_pow_deg: &AssignedExtensionFieldValue<Goldilocks, 2>,
         local_constants: &[AssignedExtensionFieldValue<Goldilocks, 2>],
         local_wires: &[AssignedExtensionFieldValue<Goldilocks, 2>],
+        public_inputs_hash: &AssignedHashValues<Goldilocks>,
         local_zs: &[AssignedExtensionFieldValue<Goldilocks, 2>],
         next_zs: &[AssignedExtensionFieldValue<Goldilocks, 2>],
         partial_products: &[AssignedExtensionFieldValue<Goldilocks, 2>],
@@ -37,6 +41,7 @@ impl Verifier {
             common_data,
             local_constants,
             local_wires,
+            public_inputs_hash,
         )?;
 
         // The L_0(x) (Z(x) - 1) vanishing terms.
@@ -133,6 +138,7 @@ impl Verifier {
         common_data: &CommonData,
         local_constants: &[AssignedExtensionFieldValue<Goldilocks, 2>],
         local_wires: &[AssignedExtensionFieldValue<Goldilocks, 2>],
+        public_inputs_hash: &AssignedHashValues<Goldilocks>,
     ) -> Result<Vec<AssignedExtensionFieldValue<Goldilocks, 2>>, Error> {
         let zero_extension = self.zero_extension(ctx, main_gate_config)?;
         let mut all_gate_constraints = vec![zero_extension; common_data.num_gate_constraints];
@@ -144,9 +150,11 @@ impl Verifier {
                 main_gate_config,
                 local_constants,
                 local_wires,
+                public_inputs_hash,
                 i,
                 selector_index,
                 common_data.selectors_info.groups[selector_index].clone(),
+                common_data.selectors_info.num_selectors(),
                 &mut all_gate_constraints,
             )?;
         }

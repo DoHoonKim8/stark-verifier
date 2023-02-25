@@ -37,6 +37,12 @@ pub struct SelectorsInfo {
     pub groups: Vec<Range<usize>>,
 }
 
+impl SelectorsInfo {
+    pub fn num_selectors(&self) -> usize {
+        self.groups.len()
+    }
+}
+
 #[derive(Default)]
 pub struct CommonData {
     pub config: CircuitConfig,

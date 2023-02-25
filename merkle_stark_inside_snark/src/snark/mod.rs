@@ -1,5 +1,6 @@
 pub mod arithmetic_extension;
 pub mod gates;
+pub mod goldilocks_extension;
 pub mod hasher;
 pub mod transcript;
 pub mod types;

@@ -1,10 +1,17 @@
 use halo2_proofs::circuit::Value;
+use halo2_proofs::plonk::Error;
 use halo2curves::{goldilocks::fp::Goldilocks, FieldExt};
+use halo2wrong::RegionCtx;
+use halo2wrong_maingate::{AssignedValue, MainGateConfig, MainGateInstructions};
 use plonky2::field::extension::Extendable;
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
     hash::{hash_types::HashOut, merkle_tree::MerkleCap, poseidon::PoseidonHash},
 };
+
+use self::assigned::{AssignedExtensionFieldValue, AssignedHashValues, AssignedMerkleCapValues};
+
+use super::verifier_circuit::Verifier;
 
 pub mod assigned;
 pub mod common_data;
@@ -20,6 +27,26 @@ pub struct HashValues<F: FieldExt> {
     pub elements: [Value<F>; 4],
 }
 
+impl HashValues<Goldilocks> {
+    pub fn assign(
+        verifier: &Verifier,
+        ctx: &mut RegionCtx<'_, Goldilocks>,
+        main_gate_config: &MainGateConfig,
+        hash_value: &Self,
+    ) -> Result<AssignedHashValues<Goldilocks>, Error> {
+        let main_gate = verifier.main_gate(main_gate_config);
+        let elements = hash_value
+            .elements
+            .iter()
+            .map(|e| main_gate.assign_value(ctx, *e))
+            .collect::<Result<Vec<AssignedValue<Goldilocks>>, Error>>()
+            .unwrap()
+            .try_into()
+            .unwrap();
+        Ok(AssignedHashValues { elements })
+    }
+}
+
 impl From<HashOut<GoldilocksField>> for HashValues<Goldilocks> {
     fn from(value: HashOut<GoldilocksField>) -> Self {
         let mut elements = [Value::unknown(); 4];
@@ -32,6 +59,22 @@ impl From<HashOut<GoldilocksField>> for HashValues<Goldilocks> {
 
 #[derive(Debug, Default)]
 pub struct MerkleCapValues<F: FieldExt>(pub Vec<HashValues<F>>);
+
+impl MerkleCapValues<Goldilocks> {
+    pub fn assign(
+        verifier: &Verifier,
+        ctx: &mut RegionCtx<'_, Goldilocks>,
+        main_gate_config: &MainGateConfig,
+        merkle_cap_values: &Self,
+    ) -> Result<AssignedMerkleCapValues<Goldilocks>, Error> {
+        let elements = merkle_cap_values
+            .0
+            .iter()
+            .map(|hash_value| HashValues::assign(verifier, ctx, main_gate_config, hash_value))
+            .collect::<Result<Vec<AssignedHashValues<Goldilocks>>, Error>>()?;
+        Ok(AssignedMerkleCapValues(elements))
+    }
+}
 
 impl From<MerkleCap<GoldilocksField, PoseidonHash>> for MerkleCapValues<Goldilocks> {
     fn from(value: MerkleCap<GoldilocksField, PoseidonHash>) -> Self {
@@ -50,13 +93,32 @@ impl<F: FieldExt, const D: usize> Default for ExtensionFieldValue<F, D> {
     }
 }
 
+impl ExtensionFieldValue<Goldilocks, 2> {
+    pub fn assign(
+        verifier: &Verifier,
+        ctx: &mut RegionCtx<'_, Goldilocks>,
+        main_gate_config: &MainGateConfig,
+        extension_field_value: &Self,
+    ) -> Result<AssignedExtensionFieldValue<Goldilocks, 2>, Error> {
+        let main_gate = verifier.main_gate(main_gate_config);
+        let elements = extension_field_value
+            .0
+            .iter()
+            .map(|v| main_gate.assign_value(ctx, *v))
+            .collect::<Result<Vec<AssignedValue<Goldilocks>>, Error>>()?
+            .try_into()
+            .unwrap();
+        Ok(AssignedExtensionFieldValue(elements))
+    }
+}
+
 // impl From<<GoldilocksField as Extendable<2>>::Extension> for ExtensionFieldValue<Goldilocks, 2> {
 
 // }
 
-impl<const D: usize> From<[GoldilocksField; D]> for ExtensionFieldValue<Goldilocks, D> {
-    fn from(value: [GoldilocksField; D]) -> Self {
-        let mut elements = [Value::unknown(); D];
+impl From<[GoldilocksField; 2]> for ExtensionFieldValue<Goldilocks, 2> {
+    fn from(value: [GoldilocksField; 2]) -> Self {
+        let mut elements = [Value::unknown(); 2];
         for (to, from) in elements.iter_mut().zip(value.iter()) {
             *to = Value::known(to_goldilocks(*from));
         }

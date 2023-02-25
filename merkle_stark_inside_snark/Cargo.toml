@@ -17,3 +17,4 @@ halo2wrong = { git = "https://github.com/privacy-scaling-explorations/halo2wrong
 itertools = "0.10.0"
 poseidon = { git = 'https://github.com/DoHoonKim8/poseidon.git' }
 rand = "0.8"
+subtle = "2.4"

@@ -34,7 +34,7 @@ fn run_verifier_circuit(
         spec,
     );
     let instance = vec![vec![]];
-    let _prover = MockProver::run(12, &verifier_circuit, instance).unwrap();
+    let _prover = MockProver::run(16, &verifier_circuit, instance).unwrap();
     _prover.assert_satisfied()
 }
 
@@ -77,7 +77,7 @@ pub fn verify_inside_snark(proof: ProofTuple<GoldilocksField, PoseidonGoldilocks
     };
 
     // opening_proof
-    let commit_phase_merkle_values: Vec<MerkleCapValues<Goldilocks>> = proof_with_public_inputs
+    let commit_phase_merkle_cap_values: Vec<MerkleCapValues<Goldilocks>> = proof_with_public_inputs
         .proof
         .opening_proof
         .commit_phase_merkle_caps
@@ -114,7 +114,7 @@ pub fn verify_inside_snark(proof: ProofTuple<GoldilocksField, PoseidonGoldilocks
         proof_with_public_inputs.proof.opening_proof.pow_witness,
     ));
     let opening_proof = FriProofValues {
-        commit_phase_merkle_values,
+        commit_phase_merkle_cap_values,
         query_round_proofs,
         final_poly,
         pow_witness,
@@ -157,6 +157,13 @@ mod tests {
     #[test]
     fn test_verify_dummy_proof() -> anyhow::Result<()> {
         let proof = mock::gen_dummy_proof()?;
+        verify_inside_snark(proof);
+        Ok(())
+    }
+
+    #[test]
+    fn test_verify_test_proof() -> anyhow::Result<()> {
+        let proof = mock::gen_test_proof()?;
         verify_inside_snark(proof);
         Ok(())
     }
