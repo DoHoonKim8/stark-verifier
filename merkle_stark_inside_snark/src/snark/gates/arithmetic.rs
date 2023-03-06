@@ -4,8 +4,8 @@ use halo2wrong::RegionCtx;
 use halo2wrong_maingate::MainGateConfig;
 
 use crate::snark::{
+    goldilocks_extension_chip::GoldilocksExtensionChip,
     types::assigned::{AssignedExtensionFieldValue, AssignedHashValues},
-    verifier_circuit::Verifier,
 };
 
 use super::CustomGateConstrainer;
@@ -37,13 +37,13 @@ impl ArithmeticGateConstrainer {
 impl CustomGateConstrainer for ArithmeticGateConstrainer {
     fn eval_unfiltered_constraint(
         &self,
-        verifier: &Verifier,
         ctx: &mut RegionCtx<'_, Goldilocks>,
         main_gate_config: &MainGateConfig,
         local_constants: &[AssignedExtensionFieldValue<Goldilocks, 2>],
         local_wires: &[AssignedExtensionFieldValue<Goldilocks, 2>],
         public_inputs_hash: &AssignedHashValues<Goldilocks>,
     ) -> Result<Vec<AssignedExtensionFieldValue<Goldilocks, 2>>, Error> {
+        let goldilocks_extension_chip = GoldilocksExtensionChip::new(main_gate_config);
         let const_0 = &local_constants[0];
         let const_1 = &local_constants[1];
 
@@ -54,14 +54,13 @@ impl CustomGateConstrainer for ArithmeticGateConstrainer {
             let addend = &local_wires[Self::wires_ith_addend(i)];
             let output = &local_wires[Self::wires_ith_output(i)];
 
-            let term1 = verifier.mul(ctx, main_gate_config, multiplicand_0, multiplicand_1)?;
-            let term1 = verifier.mul(ctx, main_gate_config, &term1, const_0)?;
-            let term2 = verifier.mul(ctx, main_gate_config, addend, const_1)?;
-            let computed_output = verifier.add_extension(ctx, main_gate_config, &term1, &term2)?;
+            let term1 = goldilocks_extension_chip.mul(ctx, multiplicand_0, multiplicand_1)?;
+            let term1 = goldilocks_extension_chip.mul(ctx, &term1, const_0)?;
+            let term2 = goldilocks_extension_chip.mul(ctx, addend, const_1)?;
+            let computed_output = goldilocks_extension_chip.add_extension(ctx, &term1, &term2)?;
 
-            constraints.push(verifier.sub_extension(
+            constraints.push(goldilocks_extension_chip.sub_extension(
                 ctx,
-                main_gate_config,
                 &output,
                 &computed_output,
             )?);

@@ -1,3 +1,5 @@
+use crate::snark::goldilocks_extension_chip::GoldilocksExtensionChip;
+
 use super::CustomGateConstrainer;
 
 /// A gate which takes a single constant parameter and outputs that value.
@@ -9,7 +11,6 @@ pub struct ConstantGateConstrainer {
 impl CustomGateConstrainer for ConstantGateConstrainer {
     fn eval_unfiltered_constraint(
         &self,
-        verifier: &crate::snark::verifier_circuit::Verifier,
         ctx: &mut halo2wrong::RegionCtx<'_, halo2curves::goldilocks::fp::Goldilocks>,
         main_gate_config: &halo2wrong_maingate::MainGateConfig,
         local_constants: &[crate::snark::types::assigned::AssignedExtensionFieldValue<
@@ -32,10 +33,11 @@ impl CustomGateConstrainer for ConstantGateConstrainer {
         >,
         halo2_proofs::plonk::Error,
     > {
+        let goldilocks_extension_chip = GoldilocksExtensionChip::new(main_gate_config);
         (0..self.num_consts)
             .map(|i| {
                 debug_assert!(i < self.num_consts);
-                verifier.sub_extension(ctx, main_gate_config, &local_constants[i], &local_wires[i])
+                goldilocks_extension_chip.sub_extension(ctx, &local_constants[i], &local_wires[i])
             })
             .collect()
     }

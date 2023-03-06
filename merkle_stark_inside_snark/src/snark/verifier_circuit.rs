@@ -1,24 +1,23 @@
 use crate::snark::{transcript::TranscriptChip, types::proof::ProofValues};
-use halo2_proofs::{
-    arithmetic::FieldExt,
-    circuit::{floor_planner::V1, *},
-    plonk::*,
-};
+use halo2_proofs::{arithmetic::FieldExt, circuit::*, plonk::*};
 use halo2curves::goldilocks::fp::Goldilocks;
 use halo2wrong::RegionCtx;
 use halo2wrong_maingate::{AssignedValue, MainGate, MainGateConfig, MainGateInstructions};
 use poseidon::Spec;
 use std::marker::PhantomData;
 
-use super::types::{
-    assigned::{
-        AssignedExtensionFieldValue, AssignedFriProofValues, AssignedHashValues,
-        AssignedMerkleCapValues, AssignedProofChallenges, AssignedProofValues,
-        AssignedProofWithPisValues, AssignedVerificationKeyValues,
+use super::{
+    goldilocks_extension_chip::GoldilocksExtensionChip,
+    types::{
+        assigned::{
+            AssignedExtensionFieldValue, AssignedFriProofValues, AssignedHashValues,
+            AssignedProofChallenges, AssignedProofValues, AssignedProofWithPisValues,
+            AssignedVerificationKeyValues,
+        },
+        common_data::CommonData,
+        verification_key::VerificationKeyValues,
+        HashValues, MerkleCapValues,
     },
-    common_data::CommonData,
-    verification_key::VerificationKeyValues,
-    HashValues, MerkleCapValues,
 };
 
 #[derive(Clone)]
@@ -40,7 +39,6 @@ impl<F: FieldExt> VerifierConfig<F> {
 pub struct Verifier {
     proof: ProofValues<Goldilocks, 2>,
     public_inputs: Vec<Goldilocks>,
-    public_inputs_num: usize,
     vk: VerificationKeyValues<Goldilocks>,
     common_data: CommonData,
     spec: Spec<Goldilocks, 12, 11>,
@@ -50,7 +48,6 @@ impl Verifier {
     pub fn new(
         proof: ProofValues<Goldilocks, 2>,
         public_inputs: Vec<Goldilocks>,
-        public_inputs_num: usize,
         vk: VerificationKeyValues<Goldilocks>,
         common_data: CommonData,
         spec: Spec<Goldilocks, 12, 11>,
@@ -58,7 +55,6 @@ impl Verifier {
         Verifier {
             proof,
             public_inputs,
-            public_inputs_num,
             vk,
             common_data,
             spec,
@@ -194,7 +190,8 @@ impl Verifier {
         challenges: &AssignedProofChallenges<Goldilocks, 2>,
         vk: &AssignedVerificationKeyValues<Goldilocks>,
     ) -> Result<(), Error> {
-        let one = self.one_extension(ctx, main_gate_config)?;
+        let goldilocks_extension_chip = GoldilocksExtensionChip::new(main_gate_config);
+        let one = goldilocks_extension_chip.one_extension(ctx)?;
         let local_constants = &proof.openings.constants.clone();
         let local_wires = &proof.openings.wires;
         let local_zs = &proof.openings.plonk_zs;
@@ -202,9 +199,8 @@ impl Verifier {
         let s_sigmas = &proof.openings.plonk_sigmas;
         let partial_products = &proof.openings.partial_products;
 
-        let zeta_pow_deg = self.exp_power_of_2_extension(
+        let zeta_pow_deg = goldilocks_extension_chip.exp_power_of_2_extension(
             ctx,
-            main_gate_config,
             challenges.plonk_zeta.clone(),
             self.common_data.degree_bits(),
         )?;
@@ -227,18 +223,17 @@ impl Verifier {
         )?;
 
         let quotient_polys_zeta = &proof.openings.quotient_polys;
-        let z_h_zeta = self.sub_extension(ctx, main_gate_config, &zeta_pow_deg, &one)?;
+        let z_h_zeta = goldilocks_extension_chip.sub_extension(ctx, &zeta_pow_deg, &one)?;
         for (i, chunk) in quotient_polys_zeta
             .chunks(self.common_data.quotient_degree_factor)
             .enumerate()
         {
             let recombined_quotient =
-                self.reduce_arithmetic(ctx, main_gate_config, &zeta_pow_deg, &chunk.to_vec())?;
+                goldilocks_extension_chip.reduce_arithmetic(ctx, &zeta_pow_deg, &chunk.to_vec())?;
             let computed_vanishing_poly =
-                self.mul_extension(ctx, main_gate_config, &z_h_zeta, &recombined_quotient)?;
-            self.assert_equal_extension(
+                goldilocks_extension_chip.mul_extension(ctx, &z_h_zeta, &recombined_quotient)?;
+            goldilocks_extension_chip.assert_equal_extension(
                 ctx,
-                main_gate_config,
                 &vanishing_poly_zeta[i],
                 &computed_vanishing_poly,
             )?;
@@ -255,7 +250,6 @@ impl Circuit<Goldilocks> for Verifier {
         Self {
             proof: ProofValues::default(),
             public_inputs: vec![],
-            public_inputs_num: 0,
             vk: VerificationKeyValues::default(),
             common_data: CommonData::default(),
             spec: Spec::new(8, 22),

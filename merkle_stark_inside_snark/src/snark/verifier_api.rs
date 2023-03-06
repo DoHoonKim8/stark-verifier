@@ -20,7 +20,6 @@ use super::verifier_circuit::Verifier;
 fn run_verifier_circuit(
     proof: ProofValues<Goldilocks, 2>,
     public_inputs: Vec<Goldilocks>,
-    public_inputs_num: usize,
     vk: VerificationKeyValues<Goldilocks>,
     common_data: CommonData,
     spec: Spec<Goldilocks, 12, 11>,
@@ -28,7 +27,6 @@ fn run_verifier_circuit(
     let verifier_circuit = Verifier::new(
         proof,
         public_inputs,
-        public_inputs_num,
         vk,
         common_data,
         spec,
@@ -134,7 +132,6 @@ pub fn verify_inside_snark(proof: ProofTuple<GoldilocksField, PoseidonGoldilocks
         .iter()
         .map(|e| types::to_goldilocks(*e))
         .collect::<Vec<Goldilocks>>();
-    let public_inputs_num = proof_with_public_inputs.public_inputs.len();
     let vk = VerificationKeyValues::from(vd.clone());
     let common_data = CommonData::from(cd);
 
@@ -142,7 +139,6 @@ pub fn verify_inside_snark(proof: ProofTuple<GoldilocksField, PoseidonGoldilocks
     run_verifier_circuit(
         proof,
         public_inputs,
-        public_inputs_num,
         vk,
         common_data,
         spec,

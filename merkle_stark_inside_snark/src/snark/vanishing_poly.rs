@@ -6,6 +6,7 @@ use halo2wrong_maingate::{AssignedValue, MainGateConfig};
 use itertools::Itertools;
 
 use super::{
+    goldilocks_extension_chip::GoldilocksExtensionChip,
     types::{
         assigned::{AssignedExtensionFieldValue, AssignedHashValues},
         common_data::CommonData,
@@ -32,6 +33,7 @@ impl Verifier {
         gammas: &[AssignedValue<Goldilocks>],
         alphas: &[AssignedValue<Goldilocks>],
     ) -> Result<Vec<AssignedExtensionFieldValue<Goldilocks, 2>>, Error> {
+        let goldilocks_extension_chip = GoldilocksExtensionChip::new(main_gate_config);
         let max_degree = common_data.quotient_degree_factor;
         let num_prods = common_data.num_partial_products;
 
@@ -54,43 +56,36 @@ impl Verifier {
         let mut s_ids = vec![];
         for j in 0..common_data.config.num_routed_wires {
             let k = common_data.k_is[j];
-            s_ids.push(self.scalar_mul(ctx, main_gate_config, x, k)?);
+            s_ids.push(goldilocks_extension_chip.scalar_mul(ctx, x, k)?);
         }
 
         for i in 0..common_data.config.num_challenges {
             let z_x = &local_zs[i];
             let z_gx = &next_zs[i];
 
-            vanishing_z_1_terms.push(self.mul_sub_extension(
-                ctx,
-                main_gate_config,
-                &l_0_x,
-                z_x,
-                &l_0_x,
-            )?);
+            vanishing_z_1_terms
+                .push(goldilocks_extension_chip.mul_sub_extension(ctx, &l_0_x, z_x, &l_0_x)?);
 
             let mut numerator_values = vec![];
             let mut denominator_values = vec![];
 
             for j in 0..common_data.config.num_routed_wires {
                 let wire_value = &local_wires[j];
-                let beta = self.convert_to_extension(ctx, main_gate_config, &betas[i])?;
-                let gamma = self.convert_to_extension(ctx, main_gate_config, &gammas[i])?;
+                let beta = goldilocks_extension_chip.convert_to_extension(ctx, &betas[i])?;
+                let gamma = goldilocks_extension_chip.convert_to_extension(ctx, &gammas[i])?;
 
                 // The numerator is `beta * s_id + wire_value + gamma`, and the denominator is
                 // `beta * s_sigma + wire_value + gamma`.
                 let wire_value_plus_gamma =
-                    self.add_extension(ctx, main_gate_config, wire_value, &gamma)?;
-                let numerator = self.mul_add_extension(
+                    goldilocks_extension_chip.add_extension(ctx, wire_value, &gamma)?;
+                let numerator = goldilocks_extension_chip.mul_add_extension(
                     ctx,
-                    main_gate_config,
                     &beta,
                     &s_ids[j],
                     &wire_value_plus_gamma,
                 )?;
-                let denominator = self.mul_add_extension(
+                let denominator = goldilocks_extension_chip.mul_add_extension(
                     ctx,
-                    main_gate_config,
                     &beta,
                     &s_sigmas[j],
                     &wire_value_plus_gamma,
@@ -125,8 +120,8 @@ impl Verifier {
         alphas
             .iter()
             .map(|alpha| {
-                let alpha = self.convert_to_extension(ctx, main_gate_config, alpha)?;
-                self.reduce_arithmetic(ctx, main_gate_config, &alpha, &vanishing_terms)
+                let alpha = goldilocks_extension_chip.convert_to_extension(ctx, alpha)?;
+                goldilocks_extension_chip.reduce_arithmetic(ctx, &alpha, &vanishing_terms)
             })
             .collect()
     }
@@ -140,12 +135,12 @@ impl Verifier {
         local_wires: &[AssignedExtensionFieldValue<Goldilocks, 2>],
         public_inputs_hash: &AssignedHashValues<Goldilocks>,
     ) -> Result<Vec<AssignedExtensionFieldValue<Goldilocks, 2>>, Error> {
-        let zero_extension = self.zero_extension(ctx, main_gate_config)?;
+        let goldilocks_extension_chip = GoldilocksExtensionChip::new(main_gate_config);
+        let zero_extension = goldilocks_extension_chip.zero_extension(ctx)?;
         let mut all_gate_constraints = vec![zero_extension; common_data.num_gate_constraints];
         for (i, gate) in common_data.gates.iter().enumerate() {
             let selector_index = common_data.selectors_info.selector_indices[i];
             gate.0.eval_filtered_constraint(
-                &self,
                 ctx,
                 main_gate_config,
                 local_constants,
@@ -169,25 +164,22 @@ impl Verifier {
         x: &AssignedExtensionFieldValue<Goldilocks, 2>,
         x_pow_n: &AssignedExtensionFieldValue<Goldilocks, 2>,
     ) -> Result<AssignedExtensionFieldValue<Goldilocks, 2>, Error> {
+        let goldilocks_extension_chip = GoldilocksExtensionChip::new(main_gate_config);
         // L_0(x) = (x^n - 1) / (n * (x - 1))
         //        = (x_pow_deg - 1) / (n * (x - 1))
-        let one_extension = self.one_extension(ctx, main_gate_config)?;
-        let neg_one_extension = self.constant_extension(
+        let one_extension = goldilocks_extension_chip.one_extension(ctx)?;
+        let neg_one_extension = goldilocks_extension_chip
+            .constant_extension(ctx, &[-Goldilocks::one(), Goldilocks::zero()])?;
+        let zero_poly = goldilocks_extension_chip.sub_extension(ctx, &x_pow_n, &one_extension)?;
+        let denominator = goldilocks_extension_chip.arithmetic_extension(
             ctx,
-            main_gate_config,
-            &[-Goldilocks::one(), Goldilocks::zero()],
-        )?;
-        let zero_poly = self.sub_extension(ctx, main_gate_config, &x_pow_n, &one_extension)?;
-        let denominator = self.arithmetic_extension(
-            ctx,
-            main_gate_config,
             Goldilocks::from(n as u64),
             Goldilocks::from(n as u64),
             &x,
             &one_extension,
             &neg_one_extension,
         )?;
-        self.div_extension(ctx, main_gate_config, &zero_poly, &denominator)
+        goldilocks_extension_chip.div_extension(ctx, &zero_poly, &denominator)
     }
 
     // \prod(g_i'(x))\phi_1(x) - \prod(f_i'(x))Z(x)
@@ -204,6 +196,7 @@ impl Verifier {
         z_gx: &AssignedExtensionFieldValue<Goldilocks, 2>,
         max_degree: usize,
     ) -> Result<Vec<AssignedExtensionFieldValue<Goldilocks, 2>>, Error> {
+        let goldilocks_extension_chip = GoldilocksExtensionChip::new(main_gate_config);
         let product_accs = iter::once(z_x)
             .chain(partials.iter())
             .chain(iter::once(z_gx));
@@ -214,15 +207,14 @@ impl Verifier {
             .zip_eq(product_accs.tuple_windows())
             .map(|((nume_chunk, denom_chunk), (prev_acc, next_acc))| {
                 let nume_product =
-                    self.mul_many_extension(ctx, main_gate_config, nume_chunk.to_vec())?;
+                    goldilocks_extension_chip.mul_many_extension(ctx, nume_chunk.to_vec())?;
                 let denom_product =
-                    self.mul_many_extension(ctx, main_gate_config, denom_chunk.to_vec())?;
+                    goldilocks_extension_chip.mul_many_extension(ctx, denom_chunk.to_vec())?;
                 let next_acc_deno =
-                    self.mul_extension(ctx, main_gate_config, next_acc, &denom_product)?;
+                    goldilocks_extension_chip.mul_extension(ctx, next_acc, &denom_product)?;
                 // Assert that next_acc * deno_product = prev_acc * nume_product.
-                self.mul_sub_extension(
+                goldilocks_extension_chip.mul_sub_extension(
                     ctx,
-                    main_gate_config,
                     prev_acc,
                     &nume_product,
                     &next_acc_deno,

@@ -922,7 +922,7 @@ dependencies = [
 [[package]]
 name = "maybe_rayon"
 version = "0.1.0"
-source = "git+https://github.com/DoHoonKim8/plonky2#0d66bf04e19117188297796904b90701bf71d248"
+source = "git+https://github.com/DoHoonKim8/plonky2#5d587c25d75d2af669c73fd607b6845f7ad32a7e"
 dependencies = [
  "rayon",
 ]
@@ -1128,7 +1128,7 @@ checksum = "6ac9a59f73473f1b8d852421e59e64809f025994837ef743615c6d0c5b305160"
 [[package]]
 name = "plonky2"
 version = "0.1.0"
-source = "git+https://github.com/DoHoonKim8/plonky2#0d66bf04e19117188297796904b90701bf71d248"
+source = "git+https://github.com/DoHoonKim8/plonky2#5d587c25d75d2af669c73fd607b6845f7ad32a7e"
 dependencies = [
  "ahash",
  "anyhow",
@@ -1150,7 +1150,7 @@ dependencies = [
 [[package]]
 name = "plonky2_field"
 version = "0.1.0"
-source = "git+https://github.com/DoHoonKim8/plonky2#0d66bf04e19117188297796904b90701bf71d248"
+source = "git+https://github.com/DoHoonKim8/plonky2#5d587c25d75d2af669c73fd607b6845f7ad32a7e"
 dependencies = [
  "anyhow",
  "itertools",
@@ -1165,7 +1165,7 @@ dependencies = [
 [[package]]
 name = "plonky2_util"
 version = "0.1.0"
-source = "git+https://github.com/DoHoonKim8/plonky2#0d66bf04e19117188297796904b90701bf71d248"
+source = "git+https://github.com/DoHoonKim8/plonky2#5d587c25d75d2af669c73fd607b6845f7ad32a7e"
 
 [[package]]
 name = "plotters"
