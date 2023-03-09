@@ -20,64 +20,34 @@ use super::{
     },
 };
 
-#[derive(Clone)]
-pub struct VerifierConfig<F: FieldExt> {
-    main_gate_config: MainGateConfig,
-    _marker: PhantomData<F>,
+pub struct PlonkVerifierChip {
+    pub main_gate_config: MainGateConfig,
 }
 
-impl<F: FieldExt> VerifierConfig<F> {
-    pub fn new(meta: &mut ConstraintSystem<F>) -> Self {
-        let main_gate_config = MainGate::<F>::configure(meta);
-        VerifierConfig {
-            main_gate_config,
-            _marker: PhantomData,
-        }
-    }
-}
-
-pub struct Verifier {
-    proof: ProofValues<Goldilocks, 2>,
-    public_inputs: Vec<Goldilocks>,
-    vk: VerificationKeyValues<Goldilocks>,
-    common_data: CommonData,
-    spec: Spec<Goldilocks, 12, 11>,
-}
-
-impl Verifier {
-    pub fn new(
-        proof: ProofValues<Goldilocks, 2>,
-        public_inputs: Vec<Goldilocks>,
-        vk: VerificationKeyValues<Goldilocks>,
-        common_data: CommonData,
-        spec: Spec<Goldilocks, 12, 11>,
-    ) -> Verifier {
-        Verifier {
-            proof,
-            public_inputs,
-            vk,
-            common_data,
-            spec,
+impl PlonkVerifierChip {
+    pub fn construct(main_gate_config: &MainGateConfig) -> Self {
+        Self {
+            main_gate_config: main_gate_config.clone(),
         }
     }
 
-    pub fn main_gate(&self, main_gate_config: &MainGateConfig) -> MainGate<Goldilocks> {
-        MainGate::<Goldilocks>::new(main_gate_config.clone())
+    pub fn main_gate(&self) -> MainGate<Goldilocks> {
+        MainGate::<Goldilocks>::new(self.main_gate_config.clone())
     }
 
     fn assign_proof_with_pis(
         &self,
         ctx: &mut RegionCtx<'_, Goldilocks>,
-        main_gate_config: &MainGateConfig,
+        public_inputs: &Vec<Goldilocks>,
+        proof: &ProofValues<Goldilocks, 2>,
     ) -> Result<AssignedProofWithPisValues<Goldilocks, 2>, Error> {
-        let main_gate = self.main_gate(main_gate_config);
+        let main_gate = self.main_gate();
 
-        let public_inputs = self
-            .public_inputs
+        let public_inputs = public_inputs
             .iter()
             .map(|pi| main_gate.assign_constant(ctx, *pi))
             .collect::<Result<Vec<AssignedValue<Goldilocks>>, Error>>()?;
-        let proof = ProofValues::assign(&self, ctx, main_gate_config, &self.proof)?;
+        let proof = ProofValues::assign(&self, ctx, &proof)?;
         Ok(AssignedProofWithPisValues {
             proof,
             public_inputs,
@@ -87,32 +57,22 @@ impl Verifier {
     fn assign_verification_key(
         &self,
         ctx: &mut RegionCtx<'_, Goldilocks>,
-        main_gate_config: &MainGateConfig,
+        vk: &VerificationKeyValues<Goldilocks>,
     ) -> Result<AssignedVerificationKeyValues<Goldilocks>, Error> {
         Ok(AssignedVerificationKeyValues {
-            constants_sigmas_cap: MerkleCapValues::assign(
-                &self,
-                ctx,
-                main_gate_config,
-                &self.vk.constants_sigmas_cap,
-            )?,
-            circuit_digest: HashValues::assign(
-                &self,
-                ctx,
-                main_gate_config,
-                &self.vk.circuit_digest,
-            )?,
+            constants_sigmas_cap: MerkleCapValues::assign(&self, ctx, &vk.constants_sigmas_cap)?,
+            circuit_digest: HashValues::assign(&self, ctx, &vk.circuit_digest)?,
         })
     }
 
     fn get_public_inputs_hash(
         &self,
         ctx: &mut RegionCtx<'_, Goldilocks>,
-        main_gate_config: &MainGateConfig,
         public_inputs: &Vec<AssignedValue<Goldilocks>>,
+        spec: &Spec<Goldilocks, 12, 11>,
     ) -> Result<AssignedHashValues<Goldilocks>, Error> {
         let mut transcript_chip =
-            TranscriptChip::<Goldilocks, 12, 11, 8>::new(ctx, &self.spec, main_gate_config)?;
+            TranscriptChip::<Goldilocks, 12, 11, 8>::new(ctx, &spec, &self.main_gate_config)?;
         let outputs = transcript_chip.hash(ctx, public_inputs.clone(), 4)?;
         Ok(AssignedHashValues {
             elements: outputs.try_into().unwrap(),
@@ -122,15 +82,14 @@ impl Verifier {
     fn get_challenges(
         &self,
         ctx: &mut RegionCtx<'_, Goldilocks>,
-        main_gate_config: &MainGateConfig,
         public_inputs_hash: &AssignedHashValues<Goldilocks>,
         circuit_digest: &AssignedHashValues<Goldilocks>,
         assigned_proof: &AssignedProofValues<Goldilocks, 2>,
         num_challenges: usize,
+        spec: &Spec<Goldilocks, 12, 11>,
     ) -> Result<AssignedProofChallenges<Goldilocks, 2>, Error> {
         let mut transcript_chip =
-            TranscriptChip::<Goldilocks, 12, 11, 8>::new(ctx, &self.spec, main_gate_config)?;
-
+            TranscriptChip::<Goldilocks, 12, 11, 8>::new(ctx, &spec, &self.main_gate_config)?;
         for e in circuit_digest.elements.iter() {
             transcript_chip.write_scalar(ctx, &e)?;
         }
@@ -184,13 +143,13 @@ impl Verifier {
     fn verify_proof_with_challenges(
         &self,
         ctx: &mut RegionCtx<'_, Goldilocks>,
-        main_gate_config: &MainGateConfig,
         proof: &AssignedProofValues<Goldilocks, 2>,
         public_inputs_hash: &AssignedHashValues<Goldilocks>,
         challenges: &AssignedProofChallenges<Goldilocks, 2>,
         vk: &AssignedVerificationKeyValues<Goldilocks>,
+        common_data: &CommonData,
     ) -> Result<(), Error> {
-        let goldilocks_extension_chip = GoldilocksExtensionChip::new(main_gate_config);
+        let goldilocks_extension_chip = GoldilocksExtensionChip::new(&self.main_gate_config);
         let one = goldilocks_extension_chip.one_extension(ctx)?;
         let local_constants = &proof.openings.constants.clone();
         let local_wires = &proof.openings.wires;
@@ -202,12 +161,11 @@ impl Verifier {
         let zeta_pow_deg = goldilocks_extension_chip.exp_power_of_2_extension(
             ctx,
             challenges.plonk_zeta.clone(),
-            self.common_data.degree_bits(),
+            common_data.degree_bits(),
         )?;
         let vanishing_poly_zeta = self.eval_vanishing_poly(
             ctx,
-            main_gate_config,
-            &self.common_data,
+            &common_data,
             &challenges.plonk_zeta,
             &zeta_pow_deg,
             local_constants,
@@ -225,7 +183,7 @@ impl Verifier {
         let quotient_polys_zeta = &proof.openings.quotient_polys;
         let z_h_zeta = goldilocks_extension_chip.sub_extension(ctx, &zeta_pow_deg, &one)?;
         for (i, chunk) in quotient_polys_zeta
-            .chunks(self.common_data.quotient_degree_factor)
+            .chunks(common_data.quotient_degree_factor)
             .enumerate()
         {
             let recombined_quotient =
@@ -239,6 +197,48 @@ impl Verifier {
             )?;
         }
         Ok(())
+    }
+}
+
+#[derive(Clone)]
+pub struct VerifierConfig<F: FieldExt> {
+    main_gate_config: MainGateConfig,
+    _marker: PhantomData<F>,
+}
+
+impl<F: FieldExt> VerifierConfig<F> {
+    pub fn new(meta: &mut ConstraintSystem<F>) -> Self {
+        let main_gate_config = MainGate::<F>::configure(meta);
+        VerifierConfig {
+            main_gate_config,
+            _marker: PhantomData,
+        }
+    }
+}
+
+pub struct Verifier {
+    proof: ProofValues<Goldilocks, 2>,
+    public_inputs: Vec<Goldilocks>,
+    vk: VerificationKeyValues<Goldilocks>,
+    common_data: CommonData,
+    spec: Spec<Goldilocks, 12, 11>,
+}
+
+impl Verifier {
+    pub fn new(
+        proof: ProofValues<Goldilocks, 2>,
+        public_inputs: Vec<Goldilocks>,
+        vk: VerificationKeyValues<Goldilocks>,
+        common_data: CommonData,
+        spec: Spec<Goldilocks, 12, 11>,
+    ) -> Self {
+        Self {
+            proof,
+            public_inputs,
+            vk,
+            common_data,
+            spec,
+        }
     }
 }
 
@@ -270,31 +270,36 @@ impl Circuit<Goldilocks> for Verifier {
             |region| {
                 let offset = 0;
                 let ctx = &mut RegionCtx::new(region, offset);
+                let plonk_verifier_chip = PlonkVerifierChip::construct(&config.main_gate_config);
 
-                let assigned_proof_with_pis =
-                    self.assign_proof_with_pis(ctx, &config.main_gate_config)?;
-                let assigned_vk = self.assign_verification_key(ctx, &config.main_gate_config)?;
-                let public_inputs_hash = self.get_public_inputs_hash(
+                let assigned_proof_with_pis = plonk_verifier_chip.assign_proof_with_pis(
                     ctx,
-                    &config.main_gate_config,
+                    &self.public_inputs,
+                    &self.proof,
+                )?;
+                let assigned_vk = plonk_verifier_chip.assign_verification_key(ctx, &self.vk)?;
+
+                let public_inputs_hash = plonk_verifier_chip.get_public_inputs_hash(
+                    ctx,
                     &assigned_proof_with_pis.public_inputs,
+                    &self.spec,
                 )?;
 
-                let challenges = self.get_challenges(
+                let challenges = plonk_verifier_chip.get_challenges(
                     ctx,
-                    &config.main_gate_config,
                     &public_inputs_hash,
                     &assigned_vk.circuit_digest,
                     &assigned_proof_with_pis.proof,
                     self.common_data.config.num_challenges,
+                    &self.spec,
                 )?;
-                self.verify_proof_with_challenges(
+                plonk_verifier_chip.verify_proof_with_challenges(
                     ctx,
-                    &config.main_gate_config,
                     &assigned_proof_with_pis.proof,
                     &public_inputs_hash,
                     &challenges,
                     &assigned_vk,
+                    &self.common_data,
                 )?;
                 Ok(())
             },

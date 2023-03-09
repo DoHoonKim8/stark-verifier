@@ -11,7 +11,7 @@ use plonky2::{
 
 use self::assigned::{AssignedExtensionFieldValue, AssignedHashValues, AssignedMerkleCapValues};
 
-use super::verifier_circuit::Verifier;
+use super::verifier_circuit::{PlonkVerifierChip, Verifier};
 
 pub mod assigned;
 pub mod common_data;
@@ -29,12 +29,11 @@ pub struct HashValues<F: FieldExt> {
 
 impl HashValues<Goldilocks> {
     pub fn assign(
-        verifier: &Verifier,
+        verifier: &PlonkVerifierChip,
         ctx: &mut RegionCtx<'_, Goldilocks>,
-        main_gate_config: &MainGateConfig,
         hash_value: &Self,
     ) -> Result<AssignedHashValues<Goldilocks>, Error> {
-        let main_gate = verifier.main_gate(main_gate_config);
+        let main_gate = verifier.main_gate();
         let elements = hash_value
             .elements
             .iter()
@@ -62,15 +61,14 @@ pub struct MerkleCapValues<F: FieldExt>(pub Vec<HashValues<F>>);
 
 impl MerkleCapValues<Goldilocks> {
     pub fn assign(
-        verifier: &Verifier,
+        verifier: &PlonkVerifierChip,
         ctx: &mut RegionCtx<'_, Goldilocks>,
-        main_gate_config: &MainGateConfig,
         merkle_cap_values: &Self,
     ) -> Result<AssignedMerkleCapValues<Goldilocks>, Error> {
         let elements = merkle_cap_values
             .0
             .iter()
-            .map(|hash_value| HashValues::assign(verifier, ctx, main_gate_config, hash_value))
+            .map(|hash_value| HashValues::assign(verifier, ctx, hash_value))
             .collect::<Result<Vec<AssignedHashValues<Goldilocks>>, Error>>()?;
         Ok(AssignedMerkleCapValues(elements))
     }
@@ -95,12 +93,11 @@ impl<F: FieldExt, const D: usize> Default for ExtensionFieldValue<F, D> {
 
 impl ExtensionFieldValue<Goldilocks, 2> {
     pub fn assign(
-        verifier: &Verifier,
+        verifier: &PlonkVerifierChip,
         ctx: &mut RegionCtx<'_, Goldilocks>,
-        main_gate_config: &MainGateConfig,
         extension_field_value: &Self,
     ) -> Result<AssignedExtensionFieldValue<Goldilocks, 2>, Error> {
-        let main_gate = verifier.main_gate(main_gate_config);
+        let main_gate = verifier.main_gate();
         let elements = extension_field_value
             .0
             .iter()

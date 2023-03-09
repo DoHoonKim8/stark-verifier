@@ -24,13 +24,7 @@ fn run_verifier_circuit(
     common_data: CommonData,
     spec: Spec<Goldilocks, 12, 11>,
 ) {
-    let verifier_circuit = Verifier::new(
-        proof,
-        public_inputs,
-        vk,
-        common_data,
-        spec,
-    );
+    let verifier_circuit = Verifier::new(proof, public_inputs, vk, common_data, spec);
     let instance = vec![vec![]];
     let _prover = MockProver::run(16, &verifier_circuit, instance).unwrap();
     _prover.assert_satisfied()
@@ -136,13 +130,7 @@ pub fn verify_inside_snark(proof: ProofTuple<GoldilocksField, PoseidonGoldilocks
     let common_data = CommonData::from(cd);
 
     let spec = Spec::<Goldilocks, 12, 11>::new(8, 22);
-    run_verifier_circuit(
-        proof,
-        public_inputs,
-        vk,
-        common_data,
-        spec,
-    );
+    run_verifier_circuit(proof, public_inputs, vk, common_data, spec);
 }
 
 #[cfg(test)]

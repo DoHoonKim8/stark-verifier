@@ -11,14 +11,13 @@ use super::{
         assigned::{AssignedExtensionFieldValue, AssignedHashValues},
         common_data::CommonData,
     },
-    verifier_circuit::Verifier,
+    verifier_circuit::PlonkVerifierChip,
 };
 
-impl Verifier {
+impl PlonkVerifierChip {
     pub fn eval_vanishing_poly(
         &self,
         ctx: &mut RegionCtx<'_, Goldilocks>,
-        main_gate_config: &MainGateConfig,
         common_data: &CommonData,
         x: &AssignedExtensionFieldValue<Goldilocks, 2>,
         x_pow_deg: &AssignedExtensionFieldValue<Goldilocks, 2>,
@@ -33,13 +32,12 @@ impl Verifier {
         gammas: &[AssignedValue<Goldilocks>],
         alphas: &[AssignedValue<Goldilocks>],
     ) -> Result<Vec<AssignedExtensionFieldValue<Goldilocks, 2>>, Error> {
-        let goldilocks_extension_chip = GoldilocksExtensionChip::new(main_gate_config);
+        let goldilocks_extension_chip = GoldilocksExtensionChip::new(&self.main_gate_config);
         let max_degree = common_data.quotient_degree_factor;
         let num_prods = common_data.num_partial_products;
 
         let constraint_terms = self.eval_gate_constraints(
             ctx,
-            main_gate_config,
             common_data,
             local_constants,
             local_wires,
@@ -51,7 +49,7 @@ impl Verifier {
         // The terms checking the partial products.
         let mut vanishing_partial_products_terms = Vec::new();
 
-        let l_0_x = self.eval_l_0_x(ctx, main_gate_config, common_data.degree(), x, x_pow_deg)?;
+        let l_0_x = self.eval_l_0_x(ctx, common_data.degree(), x, x_pow_deg)?;
 
         let mut s_ids = vec![];
         for j in 0..common_data.config.num_routed_wires {
@@ -99,7 +97,6 @@ impl Verifier {
             // Check the quotient partial products.
             let partial_product_checks = self.check_partial_products(
                 ctx,
-                main_gate_config,
                 &numerator_values,
                 &denominator_values,
                 current_partial_products,
@@ -129,20 +126,19 @@ impl Verifier {
     fn eval_gate_constraints(
         &self,
         ctx: &mut RegionCtx<'_, Goldilocks>,
-        main_gate_config: &MainGateConfig,
         common_data: &CommonData,
         local_constants: &[AssignedExtensionFieldValue<Goldilocks, 2>],
         local_wires: &[AssignedExtensionFieldValue<Goldilocks, 2>],
         public_inputs_hash: &AssignedHashValues<Goldilocks>,
     ) -> Result<Vec<AssignedExtensionFieldValue<Goldilocks, 2>>, Error> {
-        let goldilocks_extension_chip = GoldilocksExtensionChip::new(main_gate_config);
+        let goldilocks_extension_chip = GoldilocksExtensionChip::new(&self.main_gate_config);
         let zero_extension = goldilocks_extension_chip.zero_extension(ctx)?;
         let mut all_gate_constraints = vec![zero_extension; common_data.num_gate_constraints];
         for (i, gate) in common_data.gates.iter().enumerate() {
             let selector_index = common_data.selectors_info.selector_indices[i];
             gate.0.eval_filtered_constraint(
                 ctx,
-                main_gate_config,
+                &self.main_gate_config,
                 local_constants,
                 local_wires,
                 public_inputs_hash,
@@ -159,12 +155,11 @@ impl Verifier {
     fn eval_l_0_x(
         &self,
         ctx: &mut RegionCtx<'_, Goldilocks>,
-        main_gate_config: &MainGateConfig,
         n: usize,
         x: &AssignedExtensionFieldValue<Goldilocks, 2>,
         x_pow_n: &AssignedExtensionFieldValue<Goldilocks, 2>,
     ) -> Result<AssignedExtensionFieldValue<Goldilocks, 2>, Error> {
-        let goldilocks_extension_chip = GoldilocksExtensionChip::new(main_gate_config);
+        let goldilocks_extension_chip = GoldilocksExtensionChip::new(&self.main_gate_config);
         // L_0(x) = (x^n - 1) / (n * (x - 1))
         //        = (x_pow_deg - 1) / (n * (x - 1))
         let one_extension = goldilocks_extension_chip.one_extension(ctx)?;
@@ -188,7 +183,6 @@ impl Verifier {
     fn check_partial_products(
         &self,
         ctx: &mut RegionCtx<'_, Goldilocks>,
-        main_gate_config: &MainGateConfig,
         numerators: &[AssignedExtensionFieldValue<Goldilocks, 2>],
         denominators: &[AssignedExtensionFieldValue<Goldilocks, 2>],
         partials: &[AssignedExtensionFieldValue<Goldilocks, 2>],
@@ -196,7 +190,7 @@ impl Verifier {
         z_gx: &AssignedExtensionFieldValue<Goldilocks, 2>,
         max_degree: usize,
     ) -> Result<Vec<AssignedExtensionFieldValue<Goldilocks, 2>>, Error> {
-        let goldilocks_extension_chip = GoldilocksExtensionChip::new(main_gate_config);
+        let goldilocks_extension_chip = GoldilocksExtensionChip::new(&self.main_gate_config);
         let product_accs = iter::once(z_x)
             .chain(partials.iter())
             .chain(iter::once(z_gx));
