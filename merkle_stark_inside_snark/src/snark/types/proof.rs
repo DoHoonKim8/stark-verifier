@@ -1,4 +1,4 @@
-use crate::snark::verifier_circuit::{PlonkVerifierChip, Verifier};
+use crate::snark::chip::plonk::plonk_verifier_chip::PlonkVerifierChip;
 
 use super::assigned::{
     AssignedExtensionFieldValue, AssignedFriInitialTreeProofValues, AssignedFriProofValues,
@@ -11,7 +11,7 @@ use halo2_proofs::circuit::Value;
 use halo2_proofs::plonk::Error;
 use halo2curves::{goldilocks::fp::Goldilocks, FieldExt};
 use halo2wrong::RegionCtx;
-use halo2wrong_maingate::{AssignedValue, MainGateConfig, MainGateInstructions};
+use halo2wrong_maingate::{AssignedValue, MainGateInstructions};
 use itertools::Itertools;
 use plonky2::hash::merkle_proofs::MerkleProof;
 use plonky2::{

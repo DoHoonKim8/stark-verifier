@@ -1,4 +1,4 @@
-use crate::snark::hasher::HasherChip;
+use crate::snark::chip::hasher_chip::HasherChip;
 use halo2_proofs::arithmetic::FieldExt;
 use halo2_proofs::plonk::Error;
 use halo2wrong::RegionCtx;
@@ -54,7 +54,7 @@ impl<N: FieldExt, const T: usize, const T_MINUS_ONE: usize, const RATE: usize>
 
 #[cfg(test)]
 mod tests {
-    use crate::snark::transcript::TranscriptChip;
+    use crate::snark::chip::transcript_chip::TranscriptChip;
     use crate::snark::types::{self, ExtensionFieldValue, HashValues, MerkleCapValues};
     use crate::stark::mock;
     use halo2_proofs::{

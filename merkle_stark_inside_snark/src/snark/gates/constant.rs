@@ -1,4 +1,4 @@
-use crate::snark::goldilocks_extension_chip::GoldilocksExtensionChip;
+use crate::snark::chip::goldilocks_extension_chip::GoldilocksExtensionChip;
 
 use super::CustomGateConstrainer;
 

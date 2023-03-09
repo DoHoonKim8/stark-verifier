@@ -2,7 +2,7 @@ use halo2_proofs::circuit::Value;
 use halo2_proofs::plonk::Error;
 use halo2curves::{goldilocks::fp::Goldilocks, FieldExt};
 use halo2wrong::RegionCtx;
-use halo2wrong_maingate::{AssignedValue, MainGateConfig, MainGateInstructions};
+use halo2wrong_maingate::{AssignedValue, MainGateInstructions};
 use plonky2::field::extension::Extendable;
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
@@ -11,7 +11,7 @@ use plonky2::{
 
 use self::assigned::{AssignedExtensionFieldValue, AssignedHashValues, AssignedMerkleCapValues};
 
-use super::verifier_circuit::{PlonkVerifierChip, Verifier};
+use crate::snark::chip::plonk::plonk_verifier_chip::PlonkVerifierChip;
 
 pub mod assigned;
 pub mod common_data;

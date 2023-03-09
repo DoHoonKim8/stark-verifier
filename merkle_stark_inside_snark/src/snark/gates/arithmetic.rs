@@ -4,7 +4,7 @@ use halo2wrong::RegionCtx;
 use halo2wrong_maingate::MainGateConfig;
 
 use crate::snark::{
-    goldilocks_extension_chip::GoldilocksExtensionChip,
+    chip::goldilocks_extension_chip::GoldilocksExtensionChip,
     types::assigned::{AssignedExtensionFieldValue, AssignedHashValues},
 };
 

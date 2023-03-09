@@ -2,16 +2,16 @@ use core::iter;
 use halo2_proofs::{arithmetic::Field, plonk::Error};
 use halo2curves::goldilocks::fp::Goldilocks;
 use halo2wrong::RegionCtx;
-use halo2wrong_maingate::{AssignedValue, MainGateConfig};
+use halo2wrong_maingate::AssignedValue;
 use itertools::Itertools;
 
-use super::{
-    goldilocks_extension_chip::GoldilocksExtensionChip,
+use crate::snark::{
+    chip::goldilocks_extension_chip::GoldilocksExtensionChip,
+    chip::plonk::plonk_verifier_chip::PlonkVerifierChip,
     types::{
         assigned::{AssignedExtensionFieldValue, AssignedHashValues},
         common_data::CommonData,
     },
-    verifier_circuit::PlonkVerifierChip,
 };
 
 impl PlonkVerifierChip {
