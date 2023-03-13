@@ -100,6 +100,7 @@ impl Circuit<Goldilocks> for Verifier {
                     ctx,
                     &public_inputs_hash,
                     &assigned_vk.circuit_digest,
+                    &self.common_data,
                     &assigned_proof_with_pis.proof,
                     self.common_data.config.num_challenges,
                     &self.spec,

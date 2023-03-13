@@ -1,4 +1,7 @@
-use crate::snark::chip::hasher_chip::HasherChip;
+use crate::snark::{
+    chip::hasher_chip::HasherChip,
+    types::assigned::{AssignedExtensionFieldValue, AssignedHashValues, AssignedMerkleCapValues},
+};
 use halo2_proofs::arithmetic::FieldExt;
 use halo2_proofs::plonk::Error;
 use halo2wrong::RegionCtx;
@@ -32,6 +35,39 @@ impl<N: FieldExt, const T: usize, const T_MINUS_ONE: usize, const RATE: usize>
         self.hasher_chip.update(ctx, scalar)
     }
 
+    pub fn write_extension<const D: usize>(
+        &mut self,
+        ctx: &mut RegionCtx<'_, N>,
+        extension: &AssignedExtensionFieldValue<N, D>,
+    ) -> Result<(), Error> {
+        for scalar in extension.0.iter() {
+            self.write_scalar(ctx, scalar)?;
+        }
+        Ok(())
+    }
+
+    pub fn write_hash(
+        &mut self,
+        ctx: &mut RegionCtx<'_, N>,
+        hash: &AssignedHashValues<N>,
+    ) -> Result<(), Error> {
+        for scalar in hash.elements.iter() {
+            self.write_scalar(ctx, scalar)?;
+        }
+        Ok(())
+    }
+
+    pub fn write_cap(
+        &mut self,
+        ctx: &mut RegionCtx<'_, N>,
+        cap: &AssignedMerkleCapValues<N>,
+    ) -> Result<(), Error> {
+        for hash in cap.0.iter() {
+            self.write_hash(ctx, &hash)?;
+        }
+        Ok(())
+    }
+
     /// Constrain squeezing new challenge
     pub fn squeeze(
         &mut self,
@@ -55,6 +91,8 @@ impl<N: FieldExt, const T: usize, const T_MINUS_ONE: usize, const RATE: usize>
 #[cfg(test)]
 mod tests {
     use crate::snark::chip::transcript_chip::TranscriptChip;
+    use crate::snark::types::assigned::{AssignedFriOpeningBatch, AssignedFriOpenings};
+    use crate::snark::types::proof::{FriProofValues, OpeningSetValues};
     use crate::snark::types::{self, ExtensionFieldValue, HashValues, MerkleCapValues};
     use crate::stark::mock;
     use halo2_proofs::{
@@ -212,10 +250,16 @@ mod tests {
         num_challenges: usize,
         plonk_zs_partial_products_cap: MerkleCapValues<F>,
         quotient_polys_cap: MerkleCapValues<F>,
+        // openings: OpeningSetValues<F, D>,
+        // opening_proof: FriProofValues<F, D>,
         plonk_betas_expected: Value<Vec<F>>,
         plonk_gammas_expected: Value<Vec<F>>,
         plonk_alphas_expected: Value<Vec<F>>,
         plonk_zeta_expected: ExtensionFieldValue<F, D>,
+        // fri_alpha_expected: ExtensionFieldValue<F, D>,
+        // fri_betas_expected: Vec<ExtensionFieldValue<F, D>>,
+        // fri_pow_response: F,
+        // fri_query_indices: Value<Vec<usize>>,
     }
 
     impl Circuit<Goldilocks> for PlonkChallengeTestCircuit<Goldilocks, 12, 11, 2> {
@@ -342,24 +386,24 @@ mod tests {
             MerkleCapValues::from(proof.proof.plonk_zs_partial_products_cap.clone());
         let quotient_polys_cap = MerkleCapValues::from(proof.proof.quotient_polys_cap.clone());
 
-        let plonk_challenges_expected =
+        let challenges_expected =
             proof.get_challenges(proof.get_public_inputs_hash(), &vd.circuit_digest, &cd)?;
         let plonk_betas_expected = Value::known(
-            plonk_challenges_expected
+            challenges_expected
                 .plonk_betas
                 .iter()
                 .map(|e| types::to_goldilocks(*e))
                 .collect::<Vec<Goldilocks>>(),
         );
         let plonk_gammas_expected = Value::known(
-            plonk_challenges_expected
+            challenges_expected
                 .plonk_gammas
                 .iter()
                 .map(|e| types::to_goldilocks(*e))
                 .collect::<Vec<Goldilocks>>(),
         );
         let plonk_alphas_expected = Value::known(
-            plonk_challenges_expected
+            challenges_expected
                 .plonk_alphas
                 .iter()
                 .map(|e| types::to_goldilocks(*e))
@@ -367,8 +411,25 @@ mod tests {
         );
 
         let plonk_zeta_expected = ExtensionFieldValue::from(
-            (plonk_challenges_expected.plonk_zeta as QuadraticExtension<GoldilocksField>).0,
+            (challenges_expected.plonk_zeta as QuadraticExtension<GoldilocksField>).0,
         );
+
+        let fri_alpha_expected = ExtensionFieldValue::from(
+            (challenges_expected.fri_challenges.fri_alpha as QuadraticExtension<GoldilocksField>).0,
+        );
+
+        let fri_betas_expected = (challenges_expected.fri_challenges.fri_betas
+            as Vec<QuadraticExtension<GoldilocksField>>)
+            .iter()
+            .map(|ext| ExtensionFieldValue::from(ext.0))
+            .collect::<Vec<ExtensionFieldValue<Goldilocks, 2>>>();
+
+        let fri_pow_response_expected = Value::known(types::to_goldilocks(
+            challenges_expected.fri_challenges.fri_pow_response,
+        ));
+
+        let fri_query_indices_expected =
+            Value::known(challenges_expected.fri_challenges.fri_query_indices);
 
         let circuit = PlonkChallengeTestCircuit {
             spec,

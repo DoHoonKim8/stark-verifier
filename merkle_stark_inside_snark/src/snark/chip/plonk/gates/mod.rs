@@ -11,8 +11,8 @@ use self::{
     noop::NoopGateConstrainer, public_input::PublicInputGateConstrainer,
 };
 
-use super::types::assigned::{AssignedExtensionFieldValue, AssignedHashValues};
 use crate::snark::chip::goldilocks_extension_chip::GoldilocksExtensionChip;
+use crate::snark::types::assigned::{AssignedExtensionFieldValue, AssignedHashValues};
 
 /// Placeholder value to indicate that a gate doesn't use a selector polynomial.
 const UNUSED_SELECTOR: usize = u32::MAX as usize;

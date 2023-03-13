@@ -68,9 +68,27 @@ pub struct AssignedVerificationKeyValues<F: FieldExt> {
     pub circuit_digest: AssignedHashValues<F>,
 }
 
+pub struct AssignedFriChallenges<F: FieldExt, const D: usize> {
+    pub fri_alpha: AssignedExtensionFieldValue<F, D>,
+    pub fri_betas: Vec<AssignedExtensionFieldValue<F, D>>,
+    pub fri_pow_response: AssignedValue<F>,
+    pub fri_query_indices: Vec<AssignedValue<F>>,
+}
+
+/// Opened values of each polynomial.
+pub struct AssignedFriOpenings<F: FieldExt, const D: usize> {
+    pub batches: Vec<AssignedFriOpeningBatch<F, D>>,
+}
+
+/// Opened values of each polynomial that's opened at a particular point.
+pub struct AssignedFriOpeningBatch<F: FieldExt, const D: usize> {
+    pub values: Vec<AssignedExtensionFieldValue<F, D>>,
+}
+
 pub struct AssignedProofChallenges<F: FieldExt, const D: usize> {
     pub plonk_betas: Vec<AssignedValue<F>>,
     pub plonk_gammas: Vec<AssignedValue<F>>,
     pub plonk_alphas: Vec<AssignedValue<F>>,
     pub plonk_zeta: AssignedExtensionFieldValue<F, D>,
+    pub fri_challenges: AssignedFriChallenges<F, D>,
 }

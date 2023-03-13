@@ -1,10 +1,24 @@
 use std::ops::Range;
 
-use crate::snark::gates::CustomGateRef;
+use crate::snark::chip::plonk::gates::CustomGateRef;
 
 use super::to_goldilocks;
 use halo2curves::goldilocks::fp::Goldilocks;
 use plonky2::{field::goldilocks_field::GoldilocksField, plonk::circuit_data::CommonCircuitData};
+
+#[derive(Debug, Default)]
+pub struct FriConfig {
+    /// `rate = 2^{-rate_bits}`.
+    pub rate_bits: usize,
+
+    /// Height of Merkle tree caps.
+    pub cap_height: usize,
+
+    pub proof_of_work_bits: u32,
+
+    /// Number of query rounds to perform.
+    pub num_query_rounds: usize,
+}
 
 #[derive(Debug, Default)]
 pub struct CircuitConfig {
@@ -22,6 +36,7 @@ pub struct CircuitConfig {
     /// A cap on the quotient polynomial's degree factor. The actual degree factor is derived
     /// systematically, but will never exceed this value.
     pub max_quotient_degree_factor: usize,
+    pub fri_config: FriConfig,
 }
 
 #[derive(Debug, Default)]
@@ -95,6 +110,12 @@ impl From<CommonCircuitData<GoldilocksField, 2>> for CommonData {
                 num_challenges: value.config.num_challenges,
                 zero_knowledge: value.config.zero_knowledge,
                 max_quotient_degree_factor: value.config.max_quotient_degree_factor,
+                fri_config: FriConfig {
+                    rate_bits: value.config.fri_config.rate_bits,
+                    cap_height: value.config.fri_config.cap_height,
+                    proof_of_work_bits: value.config.fri_config.proof_of_work_bits,
+                    num_query_rounds: value.config.fri_config.num_query_rounds,
+                },
             },
             gates: value
                 .gates

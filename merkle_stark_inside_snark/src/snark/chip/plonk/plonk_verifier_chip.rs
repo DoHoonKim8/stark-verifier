@@ -3,7 +3,8 @@ use crate::snark::{
     chip::transcript_chip::TranscriptChip,
     types::{
         assigned::{
-            AssignedExtensionFieldValue, AssignedFriProofValues, AssignedHashValues,
+            AssignedExtensionFieldValue, AssignedFriChallenges, AssignedFriOpeningBatch,
+            AssignedFriOpenings, AssignedFriProofValues, AssignedHashValues,
             AssignedProofChallenges, AssignedProofValues, AssignedProofWithPisValues,
             AssignedVerificationKeyValues,
         },
@@ -83,6 +84,7 @@ impl PlonkVerifierChip {
         ctx: &mut RegionCtx<'_, Goldilocks>,
         public_inputs_hash: &AssignedHashValues<Goldilocks>,
         circuit_digest: &AssignedHashValues<Goldilocks>,
+        common_data: &CommonData,
         assigned_proof: &AssignedProofValues<Goldilocks, 2>,
         num_challenges: usize,
         spec: &Spec<Goldilocks, 12, 11>,
@@ -131,11 +133,71 @@ impl PlonkVerifierChip {
             }
         }
         let plonk_zeta = transcript_chip.squeeze(ctx, 2)?;
+
+        let fri_openings = AssignedFriOpenings {
+            batches: vec![
+                AssignedFriOpeningBatch {
+                    values: [
+                        openings.constants.clone(),
+                        openings.plonk_sigmas.clone(),
+                        openings.wires.clone(),
+                        openings.plonk_zs.clone(),
+                        openings.partial_products.clone(),
+                        openings.quotient_polys.clone(),
+                    ]
+                    .concat(),
+                },
+                AssignedFriOpeningBatch {
+                    values: openings.plonk_zs_next.clone(),
+                },
+            ],
+        };
+
+        for v in fri_openings.batches {
+            for ext in v.values {
+                transcript_chip.write_extension(ctx, &ext)?;
+            }
+        }
+
+        // Scaling factor to combine polynomials.
+        let fri_alpha =
+            AssignedExtensionFieldValue(transcript_chip.squeeze(ctx, 2)?.try_into().unwrap());
+
+        // Recover the random betas used in the FRI reductions.
+        let fri_betas = commit_phase_merkle_cap_values
+            .iter()
+            .map(|cap| {
+                transcript_chip.write_cap(ctx, cap)?;
+                let fri_beta = transcript_chip.squeeze(ctx, 2)?;
+                Ok(AssignedExtensionFieldValue(fri_beta.try_into().unwrap()))
+            })
+            .collect::<Result<Vec<AssignedExtensionFieldValue<Goldilocks, 2>>, Error>>()?;
+
+        for ext in final_poly.0.iter() {
+            for e in ext.0.iter() {
+                transcript_chip.write_scalar(ctx, &e)?;
+            }
+        }
+
+        transcript_chip.write_scalar(ctx, pow_witness)?;
+        let fri_pow_response = transcript_chip.squeeze(ctx, 1)?[0].clone();
+
+        let num_fri_queries = common_data.config.fri_config.num_query_rounds;
+        let fri_query_indices = (0..num_fri_queries)
+            .map(|_| transcript_chip.squeeze(ctx, 1).unwrap()[0].clone())
+            .collect();
+
         Ok(AssignedProofChallenges {
             plonk_betas,
             plonk_gammas,
             plonk_alphas,
             plonk_zeta: AssignedExtensionFieldValue(plonk_zeta.try_into().unwrap()),
+            fri_challenges: AssignedFriChallenges {
+                fri_alpha,
+                fri_betas,
+                fri_pow_response,
+                fri_query_indices,
+            },
         })
     }
 
@@ -195,6 +257,7 @@ impl PlonkVerifierChip {
                 &computed_vanishing_poly,
             )?;
         }
+
         Ok(())
     }
 }
