@@ -1,10 +1,12 @@
 use halo2curves::FieldExt;
 use halo2wrong_maingate::AssignedValue;
 
+#[derive(Clone)]
 pub struct AssignedHashValues<F: FieldExt> {
     pub elements: [AssignedValue<F>; 4],
 }
 
+#[derive(Clone)]
 pub struct AssignedMerkleCapValues<F: FieldExt>(pub Vec<AssignedHashValues<F>>);
 
 #[derive(Clone)]

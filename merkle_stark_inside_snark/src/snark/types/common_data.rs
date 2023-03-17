@@ -41,9 +41,16 @@ pub struct CircuitConfig {
 
 #[derive(Debug, Default)]
 pub struct FriParams {
+    pub config: FriConfig,
     pub hiding: bool,
     pub degree_bits: usize,
     pub reduction_arity_bits: Vec<usize>,
+}
+
+impl FriParams {
+    pub fn lde_bits(&self) -> usize {
+        self.degree_bits + self.config.rate_bits
+    }
 }
 
 #[derive(Default, Debug)]
@@ -123,6 +130,12 @@ impl From<CommonCircuitData<GoldilocksField, 2>> for CommonData {
                 .map(|gate| CustomGateRef::from(gate))
                 .collect(),
             fri_params: FriParams {
+                config: FriConfig {
+                    rate_bits: value.config.fri_config.rate_bits,
+                    cap_height: value.config.fri_config.cap_height,
+                    proof_of_work_bits: value.config.fri_config.proof_of_work_bits,
+                    num_query_rounds: value.config.fri_config.num_query_rounds,
+                },
                 hiding: value.fri_params.hiding,
                 degree_bits: value.fri_params.degree_bits,
                 reduction_arity_bits: value.fri_params.reduction_arity_bits,
