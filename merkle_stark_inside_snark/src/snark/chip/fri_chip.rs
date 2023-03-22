@@ -148,10 +148,10 @@ impl FriVerifierChip {
         // `omega` is the root of unity for initial domain in FRI
         // TODO : add function for primitive root of unity in halo2curves
         let omega = g.pow(&[
+            ((halo2curves::goldilocks::fp::MODULUS - 1) / (1 << lde_bits - 1)).to_le(),
             0,
             0,
             0,
-            (halo2curves::goldilocks::fp::MODULUS - (1 << lde_bits)).to_le(),
         ]);
         let mut x = main_gate.assign_constant(ctx, Goldilocks::one())?;
         for (i, bit) in x_index_bits.iter().enumerate() {

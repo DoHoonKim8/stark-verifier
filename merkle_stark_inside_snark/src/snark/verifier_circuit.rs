@@ -1,13 +1,16 @@
 use crate::snark::types::proof::ProofValues;
 use halo2_proofs::{arithmetic::FieldExt, circuit::*, plonk::*};
-use halo2curves::goldilocks::fp::Goldilocks;
+use halo2curves::{bn256::Fr, goldilocks::fp::Goldilocks};
 use halo2wrong::RegionCtx;
 use halo2wrong_maingate::{MainGate, MainGateConfig};
 use poseidon::Spec;
 use std::marker::PhantomData;
 
 use super::{
-    chip::plonk::plonk_verifier_chip::PlonkVerifierChip,
+    chip::{
+        goldilocks_chip::{GoldilocksChip, GoldilocksChipConfig},
+        plonk::plonk_verifier_chip::PlonkVerifierChip,
+    },
     types::{common_data::CommonData, verification_key::VerificationKeyValues},
 };
 
@@ -27,20 +30,20 @@ impl<F: FieldExt> VerifierConfig<F> {
     }
 }
 
-pub struct Verifier {
-    proof: ProofValues<Goldilocks, 2>,
+pub struct Verifier<F: FieldExt> {
+    proof: ProofValues<F, 2>,
     public_inputs: Vec<Goldilocks>,
-    vk: VerificationKeyValues<Goldilocks>,
-    common_data: CommonData,
+    vk: VerificationKeyValues<F>,
+    common_data: CommonData<F>,
     spec: Spec<Goldilocks, 12, 11>,
 }
 
-impl Verifier {
+impl<F: FieldExt> Verifier<F> {
     pub fn new(
-        proof: ProofValues<Goldilocks, 2>,
+        proof: ProofValues<F, 2>,
         public_inputs: Vec<Goldilocks>,
-        vk: VerificationKeyValues<Goldilocks>,
-        common_data: CommonData,
+        vk: VerificationKeyValues<F>,
+        common_data: CommonData<F>,
         spec: Spec<Goldilocks, 12, 11>,
     ) -> Self {
         Self {
@@ -53,8 +56,8 @@ impl Verifier {
     }
 }
 
-impl Circuit<Goldilocks> for Verifier {
-    type Config = VerifierConfig<Goldilocks>;
+impl<F: FieldExt> Circuit<F> for Verifier<F> {
+    type Config = VerifierConfig<F>;
     type FloorPlanner = SimpleFloorPlanner;
 
     fn without_witnesses(&self) -> Self {
@@ -67,21 +70,22 @@ impl Circuit<Goldilocks> for Verifier {
         }
     }
 
-    fn configure(meta: &mut ConstraintSystem<Goldilocks>) -> Self::Config {
+    fn configure(meta: &mut ConstraintSystem<F>) -> Self::Config {
         VerifierConfig::new(meta)
     }
 
     fn synthesize(
         &self,
         config: Self::Config,
-        mut layouter: impl Layouter<Goldilocks>,
+        mut layouter: impl Layouter<F>,
     ) -> Result<(), Error> {
         layouter.assign_region(
             || "Plonky2 verifier",
             |region| {
                 let offset = 0;
                 let ctx = &mut RegionCtx::new(region, offset);
-                let plonk_verifier_chip = PlonkVerifierChip::construct(&config.main_gate_config);
+                let goldilocks_chip_config = GoldilocksChip::configure(&config.main_gate_config);
+                let plonk_verifier_chip = PlonkVerifierChip::construct(&goldilocks_chip_config);
 
                 let assigned_proof_with_pis = plonk_verifier_chip.assign_proof_with_pis(
                     ctx,

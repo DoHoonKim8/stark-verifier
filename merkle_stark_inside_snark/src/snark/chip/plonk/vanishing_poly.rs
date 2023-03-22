@@ -1,6 +1,6 @@
 use core::iter;
 use halo2_proofs::{arithmetic::Field, plonk::Error};
-use halo2curves::goldilocks::fp::Goldilocks;
+use halo2curves::{goldilocks::fp::Goldilocks, FieldExt};
 use halo2wrong::RegionCtx;
 use halo2wrong_maingate::AssignedValue;
 use itertools::Itertools;
@@ -14,25 +14,25 @@ use crate::snark::{
     },
 };
 
-impl PlonkVerifierChip {
+impl<F: FieldExt> PlonkVerifierChip<F> {
     pub fn eval_vanishing_poly(
         &self,
-        ctx: &mut RegionCtx<'_, Goldilocks>,
-        common_data: &CommonData,
-        x: &AssignedExtensionFieldValue<Goldilocks, 2>,
-        x_pow_deg: &AssignedExtensionFieldValue<Goldilocks, 2>,
-        local_constants: &[AssignedExtensionFieldValue<Goldilocks, 2>],
-        local_wires: &[AssignedExtensionFieldValue<Goldilocks, 2>],
-        public_inputs_hash: &AssignedHashValues<Goldilocks>,
-        local_zs: &[AssignedExtensionFieldValue<Goldilocks, 2>],
-        next_zs: &[AssignedExtensionFieldValue<Goldilocks, 2>],
-        partial_products: &[AssignedExtensionFieldValue<Goldilocks, 2>],
-        s_sigmas: &[AssignedExtensionFieldValue<Goldilocks, 2>],
-        betas: &[AssignedValue<Goldilocks>],
-        gammas: &[AssignedValue<Goldilocks>],
-        alphas: &[AssignedValue<Goldilocks>],
-    ) -> Result<Vec<AssignedExtensionFieldValue<Goldilocks, 2>>, Error> {
-        let goldilocks_extension_chip = GoldilocksExtensionChip::new(&self.main_gate_config);
+        ctx: &mut RegionCtx<'_, F>,
+        common_data: &CommonData<F>,
+        x: &AssignedExtensionFieldValue<F, 2>,
+        x_pow_deg: &AssignedExtensionFieldValue<F, 2>,
+        local_constants: &[AssignedExtensionFieldValue<F, 2>],
+        local_wires: &[AssignedExtensionFieldValue<F, 2>],
+        public_inputs_hash: &AssignedHashValues<F>,
+        local_zs: &[AssignedExtensionFieldValue<F, 2>],
+        next_zs: &[AssignedExtensionFieldValue<F, 2>],
+        partial_products: &[AssignedExtensionFieldValue<F, 2>],
+        s_sigmas: &[AssignedExtensionFieldValue<F, 2>],
+        betas: &[AssignedValue<F>],
+        gammas: &[AssignedValue<F>],
+        alphas: &[AssignedValue<F>],
+    ) -> Result<Vec<AssignedExtensionFieldValue<F, 2>>, Error> {
+        let goldilocks_extension_chip = GoldilocksExtensionChip::new(&self.goldilocks_chip_config);
         let max_degree = common_data.quotient_degree_factor;
         let num_prods = common_data.num_partial_products;
 
@@ -125,20 +125,20 @@ impl PlonkVerifierChip {
 
     fn eval_gate_constraints(
         &self,
-        ctx: &mut RegionCtx<'_, Goldilocks>,
-        common_data: &CommonData,
-        local_constants: &[AssignedExtensionFieldValue<Goldilocks, 2>],
-        local_wires: &[AssignedExtensionFieldValue<Goldilocks, 2>],
-        public_inputs_hash: &AssignedHashValues<Goldilocks>,
-    ) -> Result<Vec<AssignedExtensionFieldValue<Goldilocks, 2>>, Error> {
-        let goldilocks_extension_chip = GoldilocksExtensionChip::new(&self.main_gate_config);
+        ctx: &mut RegionCtx<'_, F>,
+        common_data: &CommonData<F>,
+        local_constants: &[AssignedExtensionFieldValue<F, 2>],
+        local_wires: &[AssignedExtensionFieldValue<F, 2>],
+        public_inputs_hash: &AssignedHashValues<F>,
+    ) -> Result<Vec<AssignedExtensionFieldValue<F, 2>>, Error> {
+        let goldilocks_extension_chip = GoldilocksExtensionChip::new(&self.goldilocks_chip_config);
         let zero_extension = goldilocks_extension_chip.zero_extension(ctx)?;
         let mut all_gate_constraints = vec![zero_extension; common_data.num_gate_constraints];
         for (i, gate) in common_data.gates.iter().enumerate() {
             let selector_index = common_data.selectors_info.selector_indices[i];
             gate.0.eval_filtered_constraint(
                 ctx,
-                &self.main_gate_config,
+                &self.goldilocks_chip_config,
                 local_constants,
                 local_wires,
                 public_inputs_hash,
@@ -154,12 +154,12 @@ impl PlonkVerifierChip {
 
     fn eval_l_0_x(
         &self,
-        ctx: &mut RegionCtx<'_, Goldilocks>,
+        ctx: &mut RegionCtx<'_, F>,
         n: usize,
-        x: &AssignedExtensionFieldValue<Goldilocks, 2>,
-        x_pow_n: &AssignedExtensionFieldValue<Goldilocks, 2>,
-    ) -> Result<AssignedExtensionFieldValue<Goldilocks, 2>, Error> {
-        let goldilocks_extension_chip = GoldilocksExtensionChip::new(&self.main_gate_config);
+        x: &AssignedExtensionFieldValue<F, 2>,
+        x_pow_n: &AssignedExtensionFieldValue<F, 2>,
+    ) -> Result<AssignedExtensionFieldValue<F, 2>, Error> {
+        let goldilocks_extension_chip = GoldilocksExtensionChip::new(&self.goldilocks_chip_config);
         // L_0(x) = (x^n - 1) / (n * (x - 1))
         //        = (x_pow_deg - 1) / (n * (x - 1))
         let one_extension = goldilocks_extension_chip.one_extension(ctx)?;
@@ -182,15 +182,15 @@ impl PlonkVerifierChip {
     // \prod(g_i'(x))Z(gx) - \prod(f_i'(x))\phi_s(x)
     fn check_partial_products(
         &self,
-        ctx: &mut RegionCtx<'_, Goldilocks>,
-        numerators: &[AssignedExtensionFieldValue<Goldilocks, 2>],
-        denominators: &[AssignedExtensionFieldValue<Goldilocks, 2>],
-        partials: &[AssignedExtensionFieldValue<Goldilocks, 2>],
-        z_x: &AssignedExtensionFieldValue<Goldilocks, 2>,
-        z_gx: &AssignedExtensionFieldValue<Goldilocks, 2>,
+        ctx: &mut RegionCtx<'_, F>,
+        numerators: &[AssignedExtensionFieldValue<F, 2>],
+        denominators: &[AssignedExtensionFieldValue<F, 2>],
+        partials: &[AssignedExtensionFieldValue<F, 2>],
+        z_x: &AssignedExtensionFieldValue<F, 2>,
+        z_gx: &AssignedExtensionFieldValue<F, 2>,
         max_degree: usize,
-    ) -> Result<Vec<AssignedExtensionFieldValue<Goldilocks, 2>>, Error> {
-        let goldilocks_extension_chip = GoldilocksExtensionChip::new(&self.main_gate_config);
+    ) -> Result<Vec<AssignedExtensionFieldValue<F, 2>>, Error> {
+        let goldilocks_extension_chip = GoldilocksExtensionChip::new(&self.goldilocks_chip_config);
         let product_accs = iter::once(z_x)
             .chain(partials.iter())
             .chain(iter::once(z_gx));

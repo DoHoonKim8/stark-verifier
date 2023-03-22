@@ -3,7 +3,7 @@ use std::ops::Range;
 use crate::snark::chip::plonk::gates::CustomGateRef;
 
 use super::to_goldilocks;
-use halo2curves::goldilocks::fp::Goldilocks;
+use halo2curves::{goldilocks::fp::Goldilocks, FieldExt};
 use plonky2::{field::goldilocks_field::GoldilocksField, plonk::circuit_data::CommonCircuitData};
 
 #[derive(Debug, Default)]
@@ -66,13 +66,13 @@ impl SelectorsInfo {
 }
 
 #[derive(Default)]
-pub struct CommonData {
+pub struct CommonData<F: FieldExt> {
     pub config: CircuitConfig,
 
     pub fri_params: FriParams,
 
     /// The types of gates used in this circuit, along with their prefixes.
-    pub gates: Vec<CustomGateRef>,
+    pub gates: Vec<CustomGateRef<F>>,
 
     /// Information on the circuit's selector polynomials.
     pub selectors_info: SelectorsInfo,
@@ -95,7 +95,7 @@ pub struct CommonData {
     pub num_partial_products: usize,
 }
 
-impl CommonData {
+impl<F: FieldExt> CommonData<F> {
     pub const fn degree_bits(&self) -> usize {
         self.fri_params.degree_bits
     }
@@ -105,7 +105,7 @@ impl CommonData {
     }
 }
 
-impl From<CommonCircuitData<GoldilocksField, 2>> for CommonData {
+impl<F: FieldExt> From<CommonCircuitData<GoldilocksField, 2>> for CommonData<F> {
     fn from(value: CommonCircuitData<GoldilocksField, 2>) -> Self {
         Self {
             config: CircuitConfig {

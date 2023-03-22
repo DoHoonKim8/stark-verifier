@@ -1,6 +1,6 @@
 use crate::stark::recursion::ProofTuple;
-use halo2_proofs::{circuit::Value, dev::MockProver};
-use halo2curves::goldilocks::fp::Goldilocks;
+use halo2_proofs::dev::MockProver;
+use halo2curves::{goldilocks::fp::Goldilocks, FieldExt};
 use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig};
 use poseidon::Spec;
 
@@ -17,22 +17,24 @@ use super::types::{
 };
 use super::verifier_circuit::Verifier;
 
-fn run_verifier_circuit(
-    proof: ProofValues<Goldilocks, 2>,
+fn run_verifier_circuit<F: FieldExt>(
+    proof: ProofValues<F, 2>,
     public_inputs: Vec<Goldilocks>,
-    vk: VerificationKeyValues<Goldilocks>,
-    common_data: CommonData,
+    vk: VerificationKeyValues<F>,
+    common_data: CommonData<F>,
     spec: Spec<Goldilocks, 12, 11>,
 ) {
     let verifier_circuit = Verifier::new(proof, public_inputs, vk, common_data, spec);
     let instance = vec![vec![]];
-    let _prover = MockProver::run(16, &verifier_circuit, instance).unwrap();
+    let _prover = MockProver::run(18, &verifier_circuit, instance).unwrap();
     _prover.assert_satisfied()
 }
 
 /// Public API for generating Halo2 proof for Plonky2 verifier circuit
 /// feed Plonky2 proof, `VerifierOnlyCircuitData`, `CommonCircuitData`
-pub fn verify_inside_snark(proof: ProofTuple<GoldilocksField, PoseidonGoldilocksConfig, 2>) {
+pub fn verify_inside_snark<F: FieldExt>(
+    proof: ProofTuple<GoldilocksField, PoseidonGoldilocksConfig, 2>,
+) {
     let (proof_with_public_inputs, vd, cd) = proof;
 
     // proof_with_public_inputs -> ProofValues type
@@ -69,14 +71,14 @@ pub fn verify_inside_snark(proof: ProofTuple<GoldilocksField, PoseidonGoldilocks
     };
 
     // opening_proof
-    let commit_phase_merkle_cap_values: Vec<MerkleCapValues<Goldilocks>> = proof_with_public_inputs
+    let commit_phase_merkle_cap_values: Vec<MerkleCapValues<F>> = proof_with_public_inputs
         .proof
         .opening_proof
         .commit_phase_merkle_caps
         .iter()
         .map(|merkle_cap| MerkleCapValues::from(merkle_cap.clone()))
         .collect();
-    let query_round_proofs: Vec<FriQueryRoundValues<Goldilocks, 2>> = proof_with_public_inputs
+    let query_round_proofs: Vec<FriQueryRoundValues<F, 2>> = proof_with_public_inputs
         .proof
         .opening_proof
         .query_round_proofs
@@ -84,7 +86,7 @@ pub fn verify_inside_snark(proof: ProofTuple<GoldilocksField, PoseidonGoldilocks
         .map(|fri_query_round| {
             let initial_trees_proof =
                 FriInitialTreeProofValues::from(fri_query_round.initial_trees_proof.clone());
-            let steps: Vec<FriQueryStepValues<Goldilocks, 2>> = fri_query_round
+            let steps: Vec<FriQueryStepValues<F, 2>> = fri_query_round
                 .steps
                 .iter()
                 .map(|s| FriQueryStepValues::from(s.clone()))
@@ -102,9 +104,8 @@ pub fn verify_inside_snark(proof: ProofTuple<GoldilocksField, PoseidonGoldilocks
             .final_poly
             .coeffs,
     ));
-    let pow_witness = Value::known(types::to_goldilocks(
-        proof_with_public_inputs.proof.opening_proof.pow_witness,
-    ));
+    let pow_witness =
+        types::to_goldilocks(proof_with_public_inputs.proof.opening_proof.pow_witness);
     let opening_proof = FriProofValues {
         commit_phase_merkle_cap_values,
         query_round_proofs,
@@ -135,20 +136,22 @@ pub fn verify_inside_snark(proof: ProofTuple<GoldilocksField, PoseidonGoldilocks
 
 #[cfg(test)]
 mod tests {
+    use halo2curves::bn256::Fr;
+
     use crate::stark::mock;
 
     use super::verify_inside_snark;
     #[test]
     fn test_verify_dummy_proof() -> anyhow::Result<()> {
         let proof = mock::gen_dummy_proof()?;
-        verify_inside_snark(proof);
+        verify_inside_snark::<Fr>(proof);
         Ok(())
     }
 
     #[test]
     fn test_verify_test_proof() -> anyhow::Result<()> {
         let proof = mock::gen_test_proof()?;
-        verify_inside_snark(proof);
+        verify_inside_snark::<Fr>(proof);
         Ok(())
     }
 }

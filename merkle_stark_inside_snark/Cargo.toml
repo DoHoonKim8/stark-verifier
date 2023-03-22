@@ -18,3 +18,6 @@ itertools = "0.10.0"
 poseidon = { git = 'https://github.com/DoHoonKim8/poseidon.git' }
 rand = "0.8"
 subtle = "2.4"
+num-integer = "0.1"
+num-traits = "0.2"
+num-bigint = { version = "0.4", features = ["rand"] }

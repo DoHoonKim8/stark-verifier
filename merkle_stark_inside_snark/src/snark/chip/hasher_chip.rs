@@ -1,8 +1,14 @@
-use halo2_proofs::{arithmetic::FieldExt, plonk::Error};
+use halo2_proofs::{
+    arithmetic::{Field, FieldExt},
+    plonk::Error,
+};
+use halo2curves::goldilocks::fp::Goldilocks;
 use halo2wrong_maingate::{
     AssignedValue, MainGate, MainGateConfig, MainGateInstructions, RegionCtx, Term,
 };
 use poseidon::{SparseMDSMatrix, Spec, State};
+
+use super::goldilocks_chip::{self, GoldilocksChip, GoldilocksChipConfig};
 
 /// `AssignedState` is composed of `T` sized assigned values
 #[derive(Debug, Clone)]
@@ -15,8 +21,8 @@ pub struct HasherChip<F: FieldExt, const T: usize, const T_MINUS_ONE: usize, con
     state: AssignedState<F, T>,
     absorbing: Vec<AssignedValue<F>>,
     output_buffer: Vec<AssignedValue<F>>,
-    spec: Spec<F, T, T_MINUS_ONE>,
-    main_gate_config: MainGateConfig,
+    spec: Spec<Goldilocks, T, T_MINUS_ONE>,
+    goldilocks_chip_config: GoldilocksChipConfig<F>,
 }
 
 impl<F: FieldExt, const T: usize, const T_MINUS_ONE: usize, const RATE: usize>
@@ -26,15 +32,15 @@ impl<F: FieldExt, const T: usize, const T_MINUS_ONE: usize, const RATE: usize>
     pub fn new(
         // TODO: we can remove initial state assingment in construction
         ctx: &mut RegionCtx<'_, F>,
-        spec: &Spec<F, T, T_MINUS_ONE>,
-        main_gate_config: &MainGateConfig,
+        spec: &Spec<Goldilocks, T, T_MINUS_ONE>,
+        goldilocks_chip_config: &GoldilocksChipConfig<F>,
     ) -> Result<Self, Error> {
-        let main_gate = MainGate::<_>::new(main_gate_config.clone());
+        let goldilocks_chip = GoldilocksChip::new(goldilocks_chip_config);
 
         let initial_state = State::<_, T>::default()
             .words()
             .iter()
-            .map(|word| main_gate.assign_constant(ctx, *word))
+            .map(|word| goldilocks_chip.assign_constant(ctx, *word))
             .collect::<Result<Vec<AssignedValue<F>>, Error>>()?;
 
         Ok(Self {
@@ -42,7 +48,7 @@ impl<F: FieldExt, const T: usize, const T_MINUS_ONE: usize, const RATE: usize>
             spec: spec.clone(),
             absorbing: vec![],
             output_buffer: vec![],
-            main_gate_config: main_gate_config.clone(),
+            goldilocks_chip_config: goldilocks_chip_config.clone(),
         })
     }
 
@@ -84,8 +90,8 @@ impl<F: FieldExt, const T: usize, const T_MINUS_ONE: usize, const RATE: usize>
     HasherChip<F, T, T_MINUS_ONE, RATE>
 {
     /// Construct main gate
-    pub fn main_gate(&self) -> MainGate<F> {
-        MainGate::<_>::new(self.main_gate_config.clone())
+    pub fn goldilocks_chip(&self) -> GoldilocksChip<F> {
+        GoldilocksChip::new(&self.goldilocks_chip_config)
     }
 
     /*
@@ -96,27 +102,27 @@ impl<F: FieldExt, const T: usize, const T_MINUS_ONE: usize, const RATE: usize>
         self.spec.r_f() / 2
     }
 
-    pub(super) fn constants_start(&self) -> Vec<[F; T]> {
+    pub(super) fn constants_start(&self) -> Vec<[Goldilocks; T]> {
         self.spec.constants().start().clone()
     }
 
-    pub(super) fn constants_partial(&self) -> Vec<F> {
+    pub(super) fn constants_partial(&self) -> Vec<Goldilocks> {
         self.spec.constants().partial().clone()
     }
 
-    pub(super) fn constants_end(&self) -> Vec<[F; T]> {
+    pub(super) fn constants_end(&self) -> Vec<[Goldilocks; T]> {
         self.spec.constants().end().clone()
     }
 
-    pub(super) fn mds(&self) -> [[F; T]; T] {
+    pub(super) fn mds(&self) -> [[Goldilocks; T]; T] {
         self.spec.mds_matrices().mds().rows()
     }
 
-    pub(super) fn pre_sparse_mds(&self) -> [[F; T]; T] {
+    pub(super) fn pre_sparse_mds(&self) -> [[Goldilocks; T]; T] {
         self.spec.mds_matrices().pre_sparse_mds().rows()
     }
 
-    pub(super) fn sparse_matrices(&self) -> Vec<SparseMDSMatrix<F, T, T_MINUS_ONE>> {
+    pub(super) fn sparse_matrices(&self) -> Vec<SparseMDSMatrix<Goldilocks, T, T_MINUS_ONE>> {
         self.spec.mds_matrices().sparse_matrices().clone()
     }
 }
@@ -125,8 +131,12 @@ impl<F: FieldExt, const T: usize, const T_MINUS_ONE: usize, const RATE: usize>
     HasherChip<F, T, T_MINUS_ONE, RATE>
 {
     /// Applies full state sbox then adds constants to each word in the state
-    fn sbox_full(&mut self, ctx: &mut RegionCtx<'_, F>, constants: &[F; T]) -> Result<(), Error> {
-        let main_gate = self.main_gate();
+    fn sbox_full(
+        &mut self,
+        ctx: &mut RegionCtx<'_, F>,
+        constants: &[Goldilocks; T],
+    ) -> Result<(), Error> {
+        let main_gate = self.goldilocks_chip();
         for (word, constant) in self.state.0.iter_mut().zip(constants.iter()) {
             let word2 = main_gate.mul(ctx, word, word)?;
             let word4 = main_gate.mul(ctx, &word2, &word2)?;
@@ -138,13 +148,13 @@ impl<F: FieldExt, const T: usize, const T_MINUS_ONE: usize, const RATE: usize>
 
     /// Applies sbox to the first word then adds constants to each word in the
     /// state
-    fn sbox_part(&mut self, ctx: &mut RegionCtx<'_, F>, constant: F) -> Result<(), Error> {
-        let main_gate = self.main_gate();
+    fn sbox_part(&mut self, ctx: &mut RegionCtx<'_, F>, constant: Goldilocks) -> Result<(), Error> {
+        let goldilocks_chip = self.goldilocks_chip();
         let word = &mut self.state.0[0];
-        let word2 = main_gate.mul(ctx, word, word)?;
-        let word4 = main_gate.mul(ctx, &word2, &word2)?;
-        let word6 = main_gate.mul(ctx, &word2, &word4)?;
-        *word = main_gate.mul_add_constant(ctx, &word6, word, constant)?;
+        let word2 = goldilocks_chip.mul(ctx, word, word)?;
+        let word4 = goldilocks_chip.mul(ctx, &word2, &word2)?;
+        let word6 = goldilocks_chip.mul(ctx, &word2, &word4)?;
+        *word = goldilocks_chip.mul_add_constant(ctx, &word6, word, constant)?;
 
         Ok(())
     }
@@ -153,20 +163,25 @@ impl<F: FieldExt, const T: usize, const T_MINUS_ONE: usize, const RATE: usize>
     fn absorb_with_pre_constants(
         &mut self,
         ctx: &mut RegionCtx<'_, F>,
-        pre_constants: &[F; T],
+        pre_constants: &[Goldilocks; T],
     ) -> Result<(), Error> {
-        let main_gate = self.main_gate();
+        let goldilocks_chip = self.goldilocks_chip();
 
         // Add pre constants
         for (word, constant) in self.state.0.iter_mut().zip(pre_constants.iter()) {
-            *word = main_gate.add_constant(ctx, word, *constant)?;
+            *word = goldilocks_chip.add_constant(ctx, word, *constant)?;
         }
 
         Ok(())
     }
 
     /// Applies MDS State multiplication
-    fn apply_mds(&mut self, ctx: &mut RegionCtx<'_, F>, mds: &[[F; T]; T]) -> Result<(), Error> {
+    fn apply_mds(
+        &mut self,
+        ctx: &mut RegionCtx<'_, F>,
+        mds: &[[Goldilocks; T]; T],
+    ) -> Result<(), Error> {
+        let goldilocks_chip = self.goldilocks_chip();
         // Calculate new state
         let new_state = mds
             .iter()
@@ -177,10 +192,12 @@ impl<F: FieldExt, const T: usize, const T_MINUS_ONE: usize, const RATE: usize>
                     .0
                     .iter()
                     .zip(row.iter())
-                    .map(|(e, word)| Term::Assigned(e, *word))
+                    .map(|(e, word)| {
+                        Term::Assigned(e, goldilocks_chip.goldilocks_to_native_fe(*word))
+                    })
                     .collect::<Vec<Term<F>>>();
 
-                self.main_gate().compose(ctx, &terms[..], F::zero())
+                goldilocks_chip.compose(ctx, &terms[..], Goldilocks::zero())
             })
             .collect::<Result<Vec<AssignedValue<F>>, Error>>()?;
 
@@ -196,27 +213,34 @@ impl<F: FieldExt, const T: usize, const T_MINUS_ONE: usize, const RATE: usize>
     fn apply_sparse_mds(
         &mut self,
         ctx: &mut RegionCtx<'_, F>,
-        mds: &SparseMDSMatrix<F, T, T_MINUS_ONE>,
+        mds: &SparseMDSMatrix<Goldilocks, T, T_MINUS_ONE>,
     ) -> Result<(), Error> {
+        let goldilocks_chip = self.goldilocks_chip();
         // For the 0th word
         let terms = self
             .state
             .0
             .iter()
             .zip(mds.row().iter())
-            .map(|(e, word)| Term::Assigned(e, *word))
+            .map(|(e, word)| Term::Assigned(e, goldilocks_chip.goldilocks_to_native_fe(*word)))
             .collect::<Vec<Term<F>>>();
-        let mut new_state = vec![self.main_gate().compose(ctx, &terms[..], F::zero())?];
+        let mut new_state =
+            vec![self
+                .goldilocks_chip()
+                .compose(ctx, &terms[..], Goldilocks::zero())?];
 
         // Rest of the trainsition ie the sparse part
         for (e, word) in mds.col_hat().iter().zip(self.state.0.iter().skip(1)) {
-            new_state.push(self.main_gate().compose(
+            new_state.push(goldilocks_chip.compose(
                 ctx,
                 &[
-                    Term::Assigned(&self.state.0[0], *e),
+                    Term::Assigned(
+                        &self.state.0[0],
+                        goldilocks_chip.goldilocks_to_native_fe(*e),
+                    ),
                     Term::Assigned(word, F::one()),
                 ],
-                F::zero(),
+                Goldilocks::zero(),
             )?);
         }
 
@@ -258,17 +282,15 @@ impl<F: FieldExt, const T: usize, const T_MINUS_ONE: usize, const RATE: usize>
             self.sbox_full(ctx, constants)?;
             self.apply_mds(ctx, &mds)?;
         }
-        self.sbox_full(ctx, &[F::zero(); T])?;
+        self.sbox_full(ctx, &[Goldilocks::zero(); T])?;
         self.apply_mds(ctx, &mds)?;
 
         Ok(())
     }
 
     fn duplexing(&mut self, ctx: &mut RegionCtx<'_, F>) -> Result<(), Error> {
-        let main_gate = self.main_gate();
-
         for (word, input) in self.state.0.iter_mut().zip(self.absorbing.iter()) {
-            *word = main_gate.add_constant(ctx, input, F::zero())?;
+            *word = input.clone();
         }
         self.absorbing.clear();
 
@@ -285,13 +307,12 @@ impl<F: FieldExt, const T: usize, const T_MINUS_ONE: usize, const RATE: usize>
         inputs: Vec<AssignedValue<F>>,
         num_outputs: usize,
     ) -> Result<Vec<AssignedValue<F>>, Error> {
-        let main_gate = self.main_gate();
         // Flush the input que
         self.absorbing.clear();
 
         for chunk in inputs.chunks(RATE) {
             for (word, input) in self.state.0.iter_mut().zip(chunk.iter()) {
-                *word = main_gate.add_constant(ctx, input, F::zero())?;
+                *word = input.clone();
             }
             self.permutation(ctx)?;
         }

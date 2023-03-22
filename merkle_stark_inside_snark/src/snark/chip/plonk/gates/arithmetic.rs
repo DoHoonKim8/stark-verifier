@@ -1,10 +1,11 @@
 use halo2_proofs::plonk::Error;
-use halo2curves::goldilocks::fp::Goldilocks;
+use halo2curves::FieldExt;
 use halo2wrong::RegionCtx;
-use halo2wrong_maingate::MainGateConfig;
 
 use crate::snark::{
-    chip::goldilocks_extension_chip::GoldilocksExtensionChip,
+    chip::{
+        goldilocks_chip::GoldilocksChipConfig, goldilocks_extension_chip::GoldilocksExtensionChip,
+    },
     types::assigned::{AssignedExtensionFieldValue, AssignedHashValues},
 };
 
@@ -34,16 +35,16 @@ impl ArithmeticGateConstrainer {
     }
 }
 
-impl CustomGateConstrainer for ArithmeticGateConstrainer {
+impl<F: FieldExt> CustomGateConstrainer<F> for ArithmeticGateConstrainer {
     fn eval_unfiltered_constraint(
         &self,
-        ctx: &mut RegionCtx<'_, Goldilocks>,
-        main_gate_config: &MainGateConfig,
-        local_constants: &[AssignedExtensionFieldValue<Goldilocks, 2>],
-        local_wires: &[AssignedExtensionFieldValue<Goldilocks, 2>],
-        public_inputs_hash: &AssignedHashValues<Goldilocks>,
-    ) -> Result<Vec<AssignedExtensionFieldValue<Goldilocks, 2>>, Error> {
-        let goldilocks_extension_chip = GoldilocksExtensionChip::new(main_gate_config);
+        ctx: &mut RegionCtx<'_, F>,
+        goldilocks_chip_config: &GoldilocksChipConfig<F>,
+        local_constants: &[AssignedExtensionFieldValue<F, 2>],
+        local_wires: &[AssignedExtensionFieldValue<F, 2>],
+        public_inputs_hash: &AssignedHashValues<F>,
+    ) -> Result<Vec<AssignedExtensionFieldValue<F, 2>>, Error> {
+        let goldilocks_extension_chip = GoldilocksExtensionChip::new(goldilocks_chip_config);
         let const_0 = &local_constants[0];
         let const_1 = &local_constants[1];
 

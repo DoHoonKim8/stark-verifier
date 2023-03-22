@@ -1,5 +1,4 @@
 use crate::snark::types::{HashValues, MerkleCapValues};
-use halo2curves::goldilocks::fp::Goldilocks;
 use halo2curves::FieldExt;
 use plonky2::plonk::{circuit_data::VerifierOnlyCircuitData, config::PoseidonGoldilocksConfig};
 
@@ -9,8 +8,8 @@ pub struct VerificationKeyValues<F: FieldExt> {
     pub circuit_digest: HashValues<F>,
 }
 
-impl From<VerifierOnlyCircuitData<PoseidonGoldilocksConfig, 2>>
-    for VerificationKeyValues<Goldilocks>
+impl<F: FieldExt> From<VerifierOnlyCircuitData<PoseidonGoldilocksConfig, 2>>
+    for VerificationKeyValues<F>
 {
     fn from(value: VerifierOnlyCircuitData<PoseidonGoldilocksConfig, 2>) -> Self {
         VerificationKeyValues {
