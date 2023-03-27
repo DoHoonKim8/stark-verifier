@@ -1,7 +1,7 @@
 use std::ops::Range;
 
 use halo2_proofs::plonk::Error;
-use halo2curves::{goldilocks::fp::Goldilocks, FieldExt};
+use halo2curves::FieldExt;
 use halo2wrong::RegionCtx;
 
 use crate::snark::{

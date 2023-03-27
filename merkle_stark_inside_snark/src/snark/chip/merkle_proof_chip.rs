@@ -1,69 +1,78 @@
+use std::marker::PhantomData;
+
 use halo2_proofs::plonk::Error;
-use halo2curves::goldilocks::fp::Goldilocks;
+use halo2curves::{goldilocks::fp::Goldilocks, FieldExt};
 use halo2wrong::RegionCtx;
-use halo2wrong_maingate::{AssignedValue, MainGate, MainGateConfig, MainGateInstructions};
+use halo2wrong_maingate::AssignedValue;
 use itertools::Itertools;
 use poseidon::Spec;
 
 use crate::snark::types::assigned::{AssignedMerkleCapValues, AssignedMerkleProofValues};
 
-use super::{hasher_chip::HasherChip, vector_chip::VectorChip};
+use super::{
+    goldilocks_chip::{GoldilocksChip, GoldilocksChipConfig},
+    hasher_chip::HasherChip,
+    vector_chip::VectorChip,
+};
 
-pub struct MerkleProofChip {
-    main_gate_config: MainGateConfig,
+pub struct MerkleProofChip<F: FieldExt> {
+    goldilocks_chip_config: GoldilocksChipConfig<F>,
     spec: Spec<Goldilocks, 12, 11>,
+    _marker: PhantomData<F>,
 }
 
-impl MerkleProofChip {
-    pub fn new(main_gate_config: &MainGateConfig, spec: Spec<Goldilocks, 12, 11>) -> Self {
+impl<F: FieldExt> MerkleProofChip<F> {
+    pub fn new(
+        goldilocks_chip_config: &GoldilocksChipConfig<F>,
+        spec: Spec<Goldilocks, 12, 11>,
+    ) -> Self {
         Self {
-            main_gate_config: main_gate_config.clone(),
+            goldilocks_chip_config: goldilocks_chip_config.clone(),
             spec,
+            _marker: PhantomData,
         }
     }
 
-    fn main_gate(&self) -> MainGate<Goldilocks> {
-        MainGate::new(self.main_gate_config.clone())
+    fn goldilocks_chip(&self) -> GoldilocksChip<F> {
+        GoldilocksChip::new(&self.goldilocks_chip_config)
     }
 
-    fn hasher(
-        &self,
-        ctx: &mut RegionCtx<'_, Goldilocks>,
-    ) -> Result<HasherChip<Goldilocks, 12, 11, 8>, Error> {
-        HasherChip::new(ctx, &self.spec, &self.main_gate_config)
+    fn hasher(&self, ctx: &mut RegionCtx<'_, F>) -> Result<HasherChip<F, 12, 11, 8>, Error> {
+        HasherChip::new(ctx, &self.spec, &self.goldilocks_chip_config)
     }
 
     pub fn verify_merkle_proof_to_cap_with_cap_index(
         &self,
-        ctx: &mut RegionCtx<'_, Goldilocks>,
-        leaf_data: &Vec<AssignedValue<Goldilocks>>,
-        leaf_index_bits: &[AssignedValue<Goldilocks>],
-        cap_index: &AssignedValue<Goldilocks>,
-        merkle_cap: &AssignedMerkleCapValues<Goldilocks>,
-        proof: &AssignedMerkleProofValues<Goldilocks>,
+        ctx: &mut RegionCtx<'_, F>,
+        leaf_data: &Vec<AssignedValue<F>>,
+        leaf_index_bits: &[AssignedValue<F>],
+        cap_index: &AssignedValue<F>,
+        merkle_cap: &AssignedMerkleCapValues<F>,
+        proof: &AssignedMerkleProofValues<F>,
     ) -> Result<(), Error> {
         let mut hasher = self.hasher(ctx)?;
-        let main_gate = self.main_gate();
+        let goldilocks_chip = self.goldilocks_chip();
 
         let mut state = hasher.hash(ctx, leaf_data.clone(), 4)?;
 
         for (bit, sibling) in leaf_index_bits.iter().zip(proof.siblings.iter()) {
+            let mut hasher = self.hasher(ctx)?;
             let mut inputs = vec![];
             for i in 0..4 {
-                let left = main_gate.select(ctx, &state[i], &sibling.elements[i], bit)?;
+                let left = goldilocks_chip.select(ctx, &sibling.elements[i], &state[i], bit)?;
                 inputs.push(left);
             }
 
             for i in 0..4 {
-                let right = main_gate.select(ctx, &sibling.elements[i], &state[i], bit)?;
+                let right = goldilocks_chip.select(ctx, &state[i], &sibling.elements[i], bit)?;
                 inputs.push(right);
             }
-            state = hasher.hash(ctx, inputs, 4)?;
+            state = hasher.permute(ctx, inputs, 4)?;
         }
 
         for i in 0..4 {
             let vector_chip = VectorChip::new(
-                &self.main_gate_config,
+                &self.goldilocks_chip_config,
                 merkle_cap
                     .0
                     .iter()
@@ -71,7 +80,7 @@ impl MerkleProofChip {
                     .collect_vec(),
             );
             let cap_i = vector_chip.access(ctx, &cap_index)?;
-            main_gate.assert_equal(ctx, &cap_i, &state[i])?;
+            goldilocks_chip.assert_equal(ctx, &cap_i, &state[i])?;
         }
 
         Ok(())

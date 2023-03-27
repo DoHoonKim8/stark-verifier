@@ -6,14 +6,20 @@ use super::assigned::{
     AssignedMerkleCapValues, AssignedMerkleProofValues, AssignedOpeningSetValues,
     AssignedPolynomialCoeffsExtValues, AssignedProofValues,
 };
-use super::{ExtensionFieldValue, HashValues, MerkleCapValues};
-use halo2_proofs::circuit::Value;
+use super::{
+    to_extension_field_values, to_goldilocks, ExtensionFieldValue, HashValues, MerkleCapValues,
+};
 use halo2_proofs::plonk::Error;
 use halo2curves::{goldilocks::fp::Goldilocks, FieldExt};
 use halo2wrong::RegionCtx;
 use halo2wrong_maingate::AssignedValue;
 use itertools::Itertools;
+use plonky2::field::extension::quadratic::QuadraticExtension;
+use plonky2::field::polynomial::PolynomialCoeffs;
+use plonky2::fri::proof::{FriProof, FriQueryRound};
 use plonky2::hash::merkle_proofs::MerkleProof;
+use plonky2::plonk::config::PoseidonGoldilocksConfig;
+use plonky2::plonk::proof::{OpeningSet, Proof};
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
     fri::proof::{FriInitialTreeProof, FriQueryStep},
@@ -29,6 +35,20 @@ pub struct OpeningSetValues<F: FieldExt, const D: usize> {
     pub plonk_zs_next: Vec<ExtensionFieldValue<F, D>>,
     pub partial_products: Vec<ExtensionFieldValue<F, D>>,
     pub quotient_polys: Vec<ExtensionFieldValue<F, D>>,
+}
+
+impl<F: FieldExt> From<OpeningSet<GoldilocksField, 2>> for OpeningSetValues<F, 2> {
+    fn from(value: OpeningSet<GoldilocksField, 2>) -> Self {
+        Self {
+            constants: to_extension_field_values(value.constants),
+            plonk_sigmas: to_extension_field_values(value.plonk_sigmas),
+            wires: to_extension_field_values(value.wires),
+            plonk_zs: to_extension_field_values(value.plonk_zs),
+            plonk_zs_next: to_extension_field_values(value.plonk_zs_next),
+            partial_products: to_extension_field_values(value.partial_products),
+            quotient_polys: to_extension_field_values(value.quotient_polys),
+        }
+    }
 }
 
 impl<F: FieldExt, const D: usize> OpeningSetValues<F, D> {
@@ -193,6 +213,21 @@ pub struct FriQueryRoundValues<F: FieldExt, const D: usize> {
     pub steps: Vec<FriQueryStepValues<F, D>>,
 }
 
+impl<F: FieldExt> From<FriQueryRound<GoldilocksField, PoseidonHash, 2>>
+    for FriQueryRoundValues<F, 2>
+{
+    fn from(value: FriQueryRound<GoldilocksField, PoseidonHash, 2>) -> Self {
+        Self {
+            initial_trees_proof: FriInitialTreeProofValues::from(value.initial_trees_proof),
+            steps: value
+                .steps
+                .iter()
+                .map(|step| FriQueryStepValues::from(step.clone()))
+                .collect_vec(),
+        }
+    }
+}
+
 impl<F: FieldExt, const D: usize> FriQueryRoundValues<F, D> {
     pub fn assign(
         verifier: &PlonkVerifierChip<F>,
@@ -243,6 +278,20 @@ pub struct PolynomialCoeffsExtValues<F: FieldExt, const D: usize>(
     pub Vec<ExtensionFieldValue<F, D>>,
 );
 
+impl<F: FieldExt> From<PolynomialCoeffs<QuadraticExtension<GoldilocksField>>>
+    for PolynomialCoeffsExtValues<F, 2>
+{
+    fn from(value: PolynomialCoeffs<QuadraticExtension<GoldilocksField>>) -> Self {
+        Self(
+            value
+                .coeffs
+                .iter()
+                .map(|coeff| ExtensionFieldValue::from(coeff.0))
+                .collect_vec(),
+        )
+    }
+}
+
 impl<F: FieldExt, const D: usize> PolynomialCoeffsExtValues<F, D> {
     pub fn assign(
         verifier: &PlonkVerifierChip<F>,
@@ -265,6 +314,25 @@ pub struct FriProofValues<F: FieldExt, const D: usize> {
     pub query_round_proofs: Vec<FriQueryRoundValues<F, D>>,
     pub final_poly: PolynomialCoeffsExtValues<F, D>,
     pub pow_witness: Goldilocks,
+}
+
+impl<F: FieldExt> From<FriProof<GoldilocksField, PoseidonHash, 2>> for FriProofValues<F, 2> {
+    fn from(value: FriProof<GoldilocksField, PoseidonHash, 2>) -> Self {
+        Self {
+            commit_phase_merkle_cap_values: value
+                .commit_phase_merkle_caps
+                .iter()
+                .map(|cap| MerkleCapValues::from(cap.clone()))
+                .collect_vec(),
+            query_round_proofs: value
+                .query_round_proofs
+                .iter()
+                .map(|proof| FriQueryRoundValues::from(proof.clone()))
+                .collect_vec(),
+            final_poly: PolynomialCoeffsExtValues::from(value.final_poly),
+            pow_witness: to_goldilocks(value.pow_witness),
+        }
+    }
 }
 
 impl<F: FieldExt, const D: usize> FriProofValues<F, D> {
@@ -308,6 +376,20 @@ pub struct ProofValues<F: FieldExt, const D: usize> {
 
     pub openings: OpeningSetValues<F, D>,
     pub opening_proof: FriProofValues<F, D>,
+}
+
+impl<F: FieldExt> From<Proof<GoldilocksField, PoseidonGoldilocksConfig, 2>> for ProofValues<F, 2> {
+    fn from(value: Proof<GoldilocksField, PoseidonGoldilocksConfig, 2>) -> Self {
+        Self {
+            wires_cap: MerkleCapValues::from(value.wires_cap),
+            plonk_zs_partial_products_cap: MerkleCapValues::from(
+                value.plonk_zs_partial_products_cap,
+            ),
+            quotient_polys_cap: MerkleCapValues::from(value.quotient_polys_cap),
+            openings: OpeningSetValues::from(value.openings),
+            opening_proof: FriProofValues::from(value.opening_proof),
+        }
+    }
 }
 
 impl<F: FieldExt, const D: usize> ProofValues<F, D> {

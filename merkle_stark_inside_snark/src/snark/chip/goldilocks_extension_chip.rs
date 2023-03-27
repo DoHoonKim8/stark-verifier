@@ -1,13 +1,9 @@
 use halo2_proofs::arithmetic::Field;
-use halo2_proofs::circuit::Value;
 use halo2_proofs::plonk::Error;
 use halo2curves::goldilocks::fp2::QuadraticExtension;
 use halo2curves::{goldilocks::fp::Goldilocks, FieldExt};
 use halo2wrong::RegionCtx;
-use halo2wrong_maingate::{
-    big_to_fe, fe_to_big, AssignedValue, CombinationOption, CombinationOptionCommon, MainGate,
-    MainGateConfig, MainGateInstructions, Term,
-};
+use halo2wrong_maingate::{big_to_fe, fe_to_big, AssignedValue};
 
 use crate::snark::types::assigned::AssignedExtensionFieldValue;
 
@@ -32,7 +28,7 @@ impl<F: FieldExt> GoldilocksExtensionChip<F> {
         big_to_fe::<F>(fe_to_big::<Goldilocks>(goldilocks))
     }
 
-    // assumes `fe` is in goldilocks field
+    // assumes `fe` is already in goldilocks field
     fn native_fe_to_goldilocks(&self, fe: F) -> Goldilocks {
         big_to_fe::<Goldilocks>(fe_to_big::<F>(fe))
     }
@@ -95,7 +91,8 @@ impl<F: FieldExt> GoldilocksExtensionChip<F> {
         let yy_inv = self.mul(ctx, y, &y_inv)?;
         self.assert_one_extension(ctx, &yy_inv)?;
 
-        let res = self.mul(ctx, x, &y_inv)?;
+        let x_div_y = self.mul(ctx, x, &y_inv)?;
+        let res = self.add_extension(ctx, &x_div_y, z)?;
         Ok(res)
     }
 
@@ -252,6 +249,25 @@ impl<F: FieldExt> GoldilocksExtensionChip<F> {
         Ok(base)
     }
 
+    pub fn exp(
+        &self,
+        ctx: &mut RegionCtx<'_, F>,
+        base: &AssignedExtensionFieldValue<F, 2>,
+        power: usize,
+    ) -> Result<AssignedExtensionFieldValue<F, 2>, Error> {
+        match power {
+            0 => return self.one_extension(ctx),
+            1 => return Ok(base.clone()),
+            2 => return self.square_extension(ctx, base),
+            _ => (),
+        }
+        let mut product = self.one_extension(ctx)?;
+        for _ in 0..power {
+            product = self.mul_extension(ctx, &product, base)?;
+        }
+        Ok(product)
+    }
+
     pub fn mul_many_extension(
         &self,
         ctx: &mut RegionCtx<'_, F>,
@@ -300,7 +316,7 @@ impl<F: FieldExt> GoldilocksExtensionChip<F> {
         ]))
     }
 
-    pub fn reduce_arithmetic(
+    pub fn reduce_extension(
         &self,
         ctx: &mut RegionCtx<'_, F>,
         base: &AssignedExtensionFieldValue<F, 2>,
@@ -311,6 +327,31 @@ impl<F: FieldExt> GoldilocksExtensionChip<F> {
             self.mul_add_extension(ctx, &acc, base, term).unwrap()
         });
         Ok(result)
+    }
+
+    pub fn reduce(
+        &self,
+        ctx: &mut RegionCtx<'_, F>,
+        base: &AssignedExtensionFieldValue<F, 2>,
+        terms: &Vec<AssignedValue<F>>,
+    ) -> Result<AssignedExtensionFieldValue<F, 2>, Error> {
+        let terms = terms
+            .iter()
+            .map(|t| self.convert_to_extension(ctx, t))
+            .collect::<Result<Vec<AssignedExtensionFieldValue<F, 2>>, Error>>()?;
+        self.reduce_extension(ctx, base, &terms)
+    }
+
+    // shifted * factor^power
+    pub fn shift(
+        &self,
+        ctx: &mut RegionCtx<'_, F>,
+        factor: &AssignedExtensionFieldValue<F, 2>,
+        power: usize,
+        shifted: &AssignedExtensionFieldValue<F, 2>,
+    ) -> Result<AssignedExtensionFieldValue<F, 2>, Error> {
+        let exp = self.exp(ctx, factor, power)?;
+        self.mul_extension(ctx, &exp, shifted)
     }
 
     pub fn assert_equal_extension(

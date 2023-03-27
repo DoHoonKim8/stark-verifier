@@ -118,7 +118,7 @@ impl<F: FieldExt> PlonkVerifierChip<F> {
             .iter()
             .map(|alpha| {
                 let alpha = goldilocks_extension_chip.convert_to_extension(ctx, alpha)?;
-                goldilocks_extension_chip.reduce_arithmetic(ctx, &alpha, &vanishing_terms)
+                goldilocks_extension_chip.reduce_extension(ctx, &alpha, &vanishing_terms)
             })
             .collect()
     }

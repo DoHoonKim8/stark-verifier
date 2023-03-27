@@ -1,12 +1,12 @@
-use std::ops::Range;
+use std::ops::{Range, RangeFrom};
 
-use crate::snark::chip::plonk::gates::CustomGateRef;
+use crate::snark::{chip::plonk::gates::CustomGateRef, types::fri::FriOracleInfo};
 
-use super::to_goldilocks;
+use super::{fri::FriPolynomialInfo, to_goldilocks};
 use halo2curves::{goldilocks::fp::Goldilocks, FieldExt};
 use plonky2::{field::goldilocks_field::GoldilocksField, plonk::circuit_data::CommonCircuitData};
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct FriConfig {
     /// `rate = 2^{-rate_bits}`.
     pub rate_bits: usize,
@@ -39,7 +39,7 @@ pub struct CircuitConfig {
     pub fri_config: FriConfig,
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct FriParams {
     pub config: FriConfig,
     pub hiding: bool,
@@ -95,6 +95,32 @@ pub struct CommonData<F: FieldExt> {
     pub num_partial_products: usize,
 }
 
+/// Holds the Merkle tree index and blinding flag of a set of polynomials used in FRI.
+#[derive(Debug, Copy, Clone)]
+pub struct PlonkOracle {
+    pub(crate) index: usize,
+    pub(crate) blinding: bool,
+}
+
+impl PlonkOracle {
+    pub const CONSTANTS_SIGMAS: PlonkOracle = PlonkOracle {
+        index: 0,
+        blinding: false,
+    };
+    pub const WIRES: PlonkOracle = PlonkOracle {
+        index: 1,
+        blinding: true,
+    };
+    pub const ZS_PARTIAL_PRODUCTS: PlonkOracle = PlonkOracle {
+        index: 2,
+        blinding: true,
+    };
+    pub const QUOTIENT: PlonkOracle = PlonkOracle {
+        index: 3,
+        blinding: true,
+    };
+}
+
 impl<F: FieldExt> CommonData<F> {
     pub const fn degree_bits(&self) -> usize {
         self.fri_params.degree_bits
@@ -102,6 +128,96 @@ impl<F: FieldExt> CommonData<F> {
 
     pub fn degree(&self) -> usize {
         1 << self.degree_bits()
+    }
+
+    /// Range of the constants polynomials in the `constants_sigmas_commitment`.
+    pub fn constants_range(&self) -> Range<usize> {
+        0..self.num_constants
+    }
+
+    /// Range of the sigma polynomials in the `constants_sigmas_commitment`.
+    pub fn sigmas_range(&self) -> Range<usize> {
+        self.num_constants..self.num_constants + self.config.num_routed_wires
+    }
+
+    /// Range of the `z`s polynomials in the `zs_partial_products_commitment`.
+    pub fn zs_range(&self) -> Range<usize> {
+        0..self.config.num_challenges
+    }
+
+    /// Range of the partial products polynomials in the `zs_partial_products_commitment`.
+    pub fn partial_products_range(&self) -> RangeFrom<usize> {
+        self.config.num_challenges..
+    }
+
+    fn fri_preprocessed_polys(&self) -> Vec<FriPolynomialInfo> {
+        FriPolynomialInfo::from_range(
+            PlonkOracle::CONSTANTS_SIGMAS.index,
+            0..self.num_preprocessed_polys(),
+        )
+    }
+
+    fn num_preprocessed_polys(&self) -> usize {
+        self.sigmas_range().end
+    }
+
+    fn fri_wire_polys(&self) -> Vec<FriPolynomialInfo> {
+        let num_wire_polys = self.config.num_wires;
+        FriPolynomialInfo::from_range(PlonkOracle::WIRES.index, 0..num_wire_polys)
+    }
+
+    fn num_zs_partial_products_polys(&self) -> usize {
+        self.config.num_challenges * (1 + self.num_partial_products)
+    }
+
+    fn fri_zs_partial_products_polys(&self) -> Vec<FriPolynomialInfo> {
+        FriPolynomialInfo::from_range(
+            PlonkOracle::ZS_PARTIAL_PRODUCTS.index,
+            0..self.num_zs_partial_products_polys(),
+        )
+    }
+
+    pub fn fri_zs_polys(&self) -> Vec<FriPolynomialInfo> {
+        FriPolynomialInfo::from_range(PlonkOracle::ZS_PARTIAL_PRODUCTS.index, self.zs_range())
+    }
+
+    pub(crate) fn num_quotient_polys(&self) -> usize {
+        self.config.num_challenges * self.quotient_degree_factor
+    }
+
+    fn fri_quotient_polys(&self) -> Vec<FriPolynomialInfo> {
+        FriPolynomialInfo::from_range(PlonkOracle::QUOTIENT.index, 0..self.num_quotient_polys())
+    }
+
+    pub fn fri_all_polys(&self) -> Vec<FriPolynomialInfo> {
+        [
+            self.fri_preprocessed_polys(),
+            self.fri_wire_polys(),
+            self.fri_zs_partial_products_polys(),
+            self.fri_quotient_polys(),
+        ]
+        .concat()
+    }
+
+    pub fn fri_oracles(&self) -> Vec<FriOracleInfo> {
+        vec![
+            FriOracleInfo {
+                num_polys: self.num_preprocessed_polys(),
+                blinding: PlonkOracle::CONSTANTS_SIGMAS.blinding,
+            },
+            FriOracleInfo {
+                num_polys: self.config.num_wires,
+                blinding: PlonkOracle::WIRES.blinding,
+            },
+            FriOracleInfo {
+                num_polys: self.num_zs_partial_products_polys(),
+                blinding: PlonkOracle::ZS_PARTIAL_PRODUCTS.blinding,
+            },
+            FriOracleInfo {
+                num_polys: self.num_quotient_polys(),
+                blinding: PlonkOracle::QUOTIENT.blinding,
+            },
+        ]
     }
 }
 

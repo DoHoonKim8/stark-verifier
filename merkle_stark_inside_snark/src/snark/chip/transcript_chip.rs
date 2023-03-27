@@ -6,7 +6,7 @@ use halo2_proofs::arithmetic::FieldExt;
 use halo2_proofs::plonk::Error;
 use halo2curves::goldilocks::fp::Goldilocks;
 use halo2wrong::RegionCtx;
-use halo2wrong_maingate::{AssignedValue, MainGateConfig};
+use halo2wrong_maingate::AssignedValue;
 use poseidon::Spec;
 
 use super::goldilocks_chip::GoldilocksChipConfig;
@@ -97,21 +97,16 @@ mod tests {
 
     use crate::snark::chip::goldilocks_chip::{GoldilocksChip, GoldilocksChipConfig};
     use crate::snark::chip::transcript_chip::TranscriptChip;
-    use crate::snark::types::{self, ExtensionFieldValue, HashValues, MerkleCapValues};
-    use crate::stark::mock;
     use halo2_proofs::{
         arithmetic::Field,
-        circuit::{Layouter, SimpleFloorPlanner, Value},
+        circuit::{Layouter, SimpleFloorPlanner},
         dev::MockProver,
         plonk::{Circuit, ConstraintSystem, Error},
     };
     use halo2curves::bn256::Fr;
     use halo2curves::{goldilocks::fp::Goldilocks, FieldExt};
     use halo2wrong::RegionCtx;
-    use halo2wrong_maingate::{MainGate, MainGateConfig, MainGateInstructions};
-    use plonky2::field::extension::quadratic::QuadraticExtension;
-    use plonky2::field::goldilocks_field::GoldilocksField;
-    use plonky2::plonk::config::GenericHashOut;
+    use halo2wrong_maingate::MainGate;
     use poseidon::{Poseidon, Spec};
     use rand::rngs::OsRng;
 
@@ -210,220 +205,5 @@ mod tests {
         let instance = vec![vec![]];
         let _prover = MockProver::run(12, &circuit, instance).unwrap();
         _prover.assert_satisfied()
-    }
-
-    // #[test]
-    // fn test_hasher_chip_for_public_inputs_hash() -> anyhow::Result<()> {
-    //     let (proof, _, _) = mock::gen_dummy_proof()?;
-    //     let spec = Spec::<Goldilocks, 12, 11>::new(8, 22);
-
-    //     let inputs = proof
-    //         .public_inputs
-    //         .iter()
-    //         .map(|f| Goldilocks::from(f.0))
-    //         .collect::<Vec<Goldilocks>>();
-
-    //     let expected = proof
-    //         .get_public_inputs_hash()
-    //         .to_vec()
-    //         .iter()
-    //         .map(|f| Goldilocks::from(f.0))
-    //         .collect::<Vec<Goldilocks>>();
-
-    //     let circuit = TestCircuit {
-    //         spec,
-    //         n: inputs.len(),
-    //         num_output: expected.len(),
-    //         inputs: inputs,
-    //         expected: expected,
-    //         _marker: PhantomData,
-    //     };
-    //     let instance = vec![vec![]];
-    //     let _prover = MockProver::run(12, &circuit, instance).unwrap();
-    //     _prover.assert_satisfied();
-
-    //     Ok(())
-    // }
-
-    struct PlonkChallengeTestCircuit<
-        F: FieldExt,
-        const T: usize,
-        const T_MINUS_ONE: usize,
-        const D: usize,
-    > {
-        spec: Spec<Goldilocks, T, T_MINUS_ONE>,
-        inner_circuit_digest: HashValues<F>,
-        public_inputs_hash: HashValues<F>,
-        wires_cap: MerkleCapValues<F>,
-        num_challenges: usize,
-        plonk_zs_partial_products_cap: MerkleCapValues<F>,
-        quotient_polys_cap: MerkleCapValues<F>,
-        // openings: OpeningSetValues<F, D>,
-        // opening_proof: FriProofValues<F, D>,
-        plonk_betas_expected: Vec<Goldilocks>,
-        plonk_gammas_expected: Vec<Goldilocks>,
-        plonk_alphas_expected: Vec<Goldilocks>,
-        plonk_zeta_expected: ExtensionFieldValue<F, D>,
-        // fri_alpha_expected: ExtensionFieldValue<F, D>,
-        // fri_betas_expected: Vec<ExtensionFieldValue<F, D>>,
-        // fri_pow_response: F,
-        // fri_query_indices: Value<Vec<usize>>,
-    }
-
-    impl Circuit<Fr> for PlonkChallengeTestCircuit<Fr, 12, 11, 2> {
-        type Config = TestCircuitConfig<Fr>;
-        type FloorPlanner = SimpleFloorPlanner;
-
-        fn configure(meta: &mut ConstraintSystem<Fr>) -> Self::Config {
-            TestCircuitConfig::new(meta)
-        }
-
-        fn synthesize(
-            &self,
-            config: Self::Config,
-            mut layouter: impl Layouter<Fr>,
-        ) -> Result<(), Error> {
-            let main_gate = GoldilocksChip::new(&config.goldilocks_chip_config);
-
-            layouter.assign_region(
-                || "",
-                |region| {
-                    let offset = 0;
-                    let ctx = &mut RegionCtx::new(region, offset);
-
-                    let mut transcript_chip = TranscriptChip::<Fr, 12, 11, 8>::new(
-                        ctx,
-                        &self.spec,
-                        &config.goldilocks_chip_config,
-                    )?;
-
-                    for e in self.inner_circuit_digest.elements.iter() {
-                        let e = main_gate.assign_constant(ctx, *e)?;
-                        transcript_chip.write_scalar(ctx, &e)?;
-                    }
-
-                    for e in self.public_inputs_hash.elements.iter() {
-                        let e = main_gate.assign_constant(ctx, *e)?;
-                        transcript_chip.write_scalar(ctx, &e)?;
-                    }
-
-                    for hash in self.wires_cap.0.iter() {
-                        for e in hash.elements.iter() {
-                            let e = main_gate.assign_constant(ctx, *e)?;
-                            transcript_chip.write_scalar(ctx, &e)?;
-                        }
-                    }
-                    let plonk_betas = transcript_chip.squeeze(ctx, self.num_challenges)?;
-                    let plonk_gammas = transcript_chip.squeeze(ctx, self.num_challenges)?;
-
-                    for (actual, expected) in
-                        plonk_betas.iter().zip(self.plonk_betas_expected.iter())
-                    {
-                        let expected = main_gate.assign_constant(ctx, *expected)?;
-                        main_gate.assert_equal(ctx, actual, &expected)?;
-                    }
-
-                    // for (actual, expected) in plonk_gammas.iter().zip(
-                    //     self.plonk_gammas_expected.iter(),
-                    // ) {
-                    //     let expected = main_gate.assign_constant(ctx, *expected)?;
-                    //     main_gate.assert_equal(ctx, actual, &expected)?;
-                    // }
-
-                    // for hash in self.plonk_zs_partial_products_cap.0.iter() {
-                    //     for e in hash.elements.iter() {
-                    //         let e = main_gate.assign_constant(ctx, *e)?;
-                    //         transcript_chip.write_scalar(ctx, &e)?;
-                    //     }
-                    // }
-                    // let plonk_alphas = transcript_chip.squeeze(ctx, self.num_challenges)?;
-
-                    // for (actual, expected) in plonk_alphas.iter().zip(
-                    //     self.plonk_alphas_expected.iter(),
-                    // ) {
-                    //     let expected = main_gate.assign_constant(ctx, *expected)?;
-                    //     main_gate.assert_equal(ctx, actual, &expected)?;
-                    // }
-
-                    // for hash in self.quotient_polys_cap.0.iter() {
-                    //     for e in hash.elements.iter() {
-                    //         let e = main_gate.assign_constant(ctx, *e)?;
-                    //         transcript_chip.write_scalar(ctx, &e)?;
-                    //     }
-                    // }
-                    // let plonk_zeta = transcript_chip.squeeze(ctx, 2)?;
-
-                    // for (actual, expected) in
-                    //     plonk_zeta.iter().zip(self.plonk_zeta_expected.elements.iter())
-                    // {
-                    //     let expected = main_gate.assign_constant(ctx, *expected)?;
-                    //     main_gate.assert_equal(ctx, actual, &expected)?;
-                    // }
-
-                    Ok(())
-                },
-            )?;
-
-            Ok(())
-        }
-
-        fn without_witnesses(&self) -> Self {
-            todo!()
-        }
-    }
-
-    #[test]
-    fn test_hasher_chip_for_challenges() -> anyhow::Result<()> {
-        let (proof, vd, cd) = mock::gen_dummy_proof()?;
-        let spec = Spec::<Goldilocks, 12, 11>::new(8, 22);
-
-        let inner_circuit_digest = HashValues::from(vd.circuit_digest.clone());
-        let public_inputs_hash = HashValues::from(proof.get_public_inputs_hash().clone());
-        let wires_cap = MerkleCapValues::from(proof.proof.wires_cap.clone());
-        let num_challenges = cd.config.num_challenges;
-        let plonk_zs_partial_products_cap =
-            MerkleCapValues::from(proof.proof.plonk_zs_partial_products_cap.clone());
-        let quotient_polys_cap = MerkleCapValues::from(proof.proof.quotient_polys_cap.clone());
-
-        let challenges_expected =
-            proof.get_challenges(proof.get_public_inputs_hash(), &vd.circuit_digest, &cd)?;
-        let plonk_betas_expected = challenges_expected
-            .plonk_betas
-            .iter()
-            .map(|e| types::to_goldilocks(*e))
-            .collect::<Vec<Goldilocks>>();
-        let plonk_gammas_expected = challenges_expected
-            .plonk_gammas
-            .iter()
-            .map(|e| types::to_goldilocks(*e))
-            .collect::<Vec<Goldilocks>>();
-        let plonk_alphas_expected = challenges_expected
-            .plonk_alphas
-            .iter()
-            .map(|e| types::to_goldilocks(*e))
-            .collect::<Vec<Goldilocks>>();
-
-        let plonk_zeta_expected = ExtensionFieldValue::from(
-            (challenges_expected.plonk_zeta as QuadraticExtension<GoldilocksField>).0,
-        );
-
-        let circuit: PlonkChallengeTestCircuit<Fr, 12, 11, 2> = PlonkChallengeTestCircuit {
-            spec,
-            inner_circuit_digest,
-            public_inputs_hash,
-            wires_cap,
-            num_challenges,
-            plonk_zs_partial_products_cap,
-            quotient_polys_cap,
-            plonk_betas_expected,
-            plonk_gammas_expected,
-            plonk_alphas_expected,
-            plonk_zeta_expected,
-        };
-        let instance = vec![vec![]];
-        let _prover = MockProver::run(15, &circuit, instance).unwrap();
-        _prover.assert_satisfied();
-
-        Ok(())
     }
 }

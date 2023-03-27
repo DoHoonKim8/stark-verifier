@@ -1,16 +1,17 @@
 use crate::snark::types::proof::ProofValues;
-use halo2_proofs::{arithmetic::FieldExt, circuit::*, plonk::*};
-use halo2curves::{bn256::Fr, goldilocks::fp::Goldilocks};
+use halo2_proofs::{
+    arithmetic::FieldExt,
+    circuit::{floor_planner::V1, *},
+    plonk::*,
+};
+use halo2curves::goldilocks::fp::Goldilocks;
 use halo2wrong::RegionCtx;
 use halo2wrong_maingate::{MainGate, MainGateConfig};
 use poseidon::Spec;
 use std::marker::PhantomData;
 
 use super::{
-    chip::{
-        goldilocks_chip::{GoldilocksChip, GoldilocksChipConfig},
-        plonk::plonk_verifier_chip::PlonkVerifierChip,
-    },
+    chip::{goldilocks_chip::GoldilocksChip, plonk::plonk_verifier_chip::PlonkVerifierChip},
     types::{common_data::CommonData, verification_key::VerificationKeyValues},
 };
 
@@ -116,6 +117,7 @@ impl<F: FieldExt> Circuit<F> for Verifier<F> {
                     &challenges,
                     &assigned_vk,
                     &self.common_data,
+                    &self.spec,
                 )?;
                 Ok(())
             },

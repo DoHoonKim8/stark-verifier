@@ -1,24 +1,25 @@
 use crate::snark::{
     chip::goldilocks_extension_chip::GoldilocksExtensionChip,
     chip::{
+        fri_chip::FriVerifierChip,
         goldilocks_chip::{GoldilocksChip, GoldilocksChipConfig},
         transcript_chip::TranscriptChip,
     },
     types::{
         assigned::{
-            AssignedExtensionFieldValue, AssignedFriChallenges, AssignedFriOpeningBatch,
-            AssignedFriOpenings, AssignedFriProofValues, AssignedHashValues,
-            AssignedProofChallenges, AssignedProofValues, AssignedProofWithPisValues,
-            AssignedVerificationKeyValues,
+            AssignedExtensionFieldValue, AssignedFriChallenges, AssignedFriProofValues,
+            AssignedHashValues, AssignedProofChallenges, AssignedProofValues,
+            AssignedProofWithPisValues, AssignedVerificationKeyValues,
         },
         common_data::CommonData,
+        fri::FriInstanceInfo,
         proof::ProofValues,
         verification_key::VerificationKeyValues,
         HashValues, MerkleCapValues,
     },
 };
 use halo2_proofs::plonk::*;
-use halo2curves::{goldilocks::fp::Goldilocks, FieldExt};
+use halo2curves::{goldilocks::fp::Goldilocks, group::ff::PrimeField, FieldExt};
 use halo2wrong::RegionCtx;
 use halo2wrong_maingate::AssignedValue;
 use poseidon::Spec;
@@ -137,24 +138,7 @@ impl<F: FieldExt> PlonkVerifierChip<F> {
         }
         let plonk_zeta = transcript_chip.squeeze(ctx, 2)?;
 
-        let fri_openings = AssignedFriOpenings {
-            batches: vec![
-                AssignedFriOpeningBatch {
-                    values: [
-                        openings.constants.clone(),
-                        openings.plonk_sigmas.clone(),
-                        openings.wires.clone(),
-                        openings.plonk_zs.clone(),
-                        openings.partial_products.clone(),
-                        openings.quotient_polys.clone(),
-                    ]
-                    .concat(),
-                },
-                AssignedFriOpeningBatch {
-                    values: openings.plonk_zs_next.clone(),
-                },
-            ],
-        };
+        let fri_openings = openings.to_fri_openings();
 
         for v in fri_openings.batches {
             for ext in v.values {
@@ -186,9 +170,10 @@ impl<F: FieldExt> PlonkVerifierChip<F> {
         let fri_pow_response = transcript_chip.squeeze(ctx, 1)?[0].clone();
 
         let num_fri_queries = common_data.config.fri_config.num_query_rounds;
-        let fri_query_indices = (0..num_fri_queries)
-            .map(|_| transcript_chip.squeeze(ctx, 1).unwrap()[0].clone())
-            .collect();
+        // let fri_query_indices = (0..num_fri_queries)
+        //     .map(|_| transcript_chip.squeeze(ctx, 1).unwrap()[0].clone())
+        //     .collect();
+        let fri_query_indices = transcript_chip.squeeze(ctx, num_fri_queries)?;
 
         Ok(AssignedProofChallenges {
             plonk_betas,
@@ -212,6 +197,7 @@ impl<F: FieldExt> PlonkVerifierChip<F> {
         challenges: &AssignedProofChallenges<F, 2>,
         vk: &AssignedVerificationKeyValues<F>,
         common_data: &CommonData<F>,
+        spec: &Spec<Goldilocks, 12, 11>,
     ) -> Result<(), Error> {
         let goldilocks_extension_chip = GoldilocksExtensionChip::new(&self.goldilocks_chip_config);
         let one = goldilocks_extension_chip.one_extension(ctx)?;
@@ -251,7 +237,7 @@ impl<F: FieldExt> PlonkVerifierChip<F> {
             .enumerate()
         {
             let recombined_quotient =
-                goldilocks_extension_chip.reduce_arithmetic(ctx, &zeta_pow_deg, &chunk.to_vec())?;
+                goldilocks_extension_chip.reduce_extension(ctx, &zeta_pow_deg, &chunk.to_vec())?;
             let computed_vanishing_poly =
                 goldilocks_extension_chip.mul_extension(ctx, &z_h_zeta, &recombined_quotient)?;
             goldilocks_extension_chip.assert_equal_extension(
@@ -260,6 +246,310 @@ impl<F: FieldExt> PlonkVerifierChip<F> {
                 &computed_vanishing_poly,
             )?;
         }
+
+        let merkle_caps = &[
+            vk.constants_sigmas_cap.clone(),
+            proof.wires_cap.clone(),
+            proof.plonk_zs_partial_products_cap.clone(),
+            proof.quotient_polys_cap.clone(),
+        ];
+
+        let g = Goldilocks::multiplicative_generator().pow(&[
+            ((halo2curves::goldilocks::fp::MODULUS - 1) / (1 << common_data.degree_bits() - 1))
+                .to_le(),
+            0,
+            0,
+            0,
+        ]);
+        let zeta_next = goldilocks_extension_chip.scalar_mul(ctx, &challenges.plonk_zeta, g)?;
+        let fri_instance_info =
+            FriInstanceInfo::new(&challenges.plonk_zeta, &zeta_next, common_data);
+        let offset = self
+            .goldilocks_chip()
+            .assign_constant(ctx, Goldilocks::multiplicative_generator())?;
+        let fri_chip = FriVerifierChip::construct(
+            &self.goldilocks_chip_config,
+            spec.clone(),
+            &offset,
+            common_data.fri_params.clone(),
+            merkle_caps.to_vec(),
+            challenges.fri_challenges.clone(),
+            proof.openings.to_fri_openings(),
+            proof.opening_proof.clone(),
+            fri_instance_info,
+        );
+        fri_chip.verify_fri_proof(ctx)?;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use halo2_proofs::{
+        circuit::{Layouter, SimpleFloorPlanner},
+        dev::MockProver,
+        halo2curves::bn256::Fr,
+        plonk::{Circuit, ConstraintSystem, Error},
+    };
+    use halo2curves::{goldilocks::fp::Goldilocks, group::ff::PrimeField, FieldExt};
+    use halo2wrong::RegionCtx;
+    use halo2wrong_maingate::MainGate;
+    use itertools::Itertools;
+    use plonky2::field::{
+        extension::quadratic::QuadraticExtension, goldilocks_field::GoldilocksField,
+    };
+    use poseidon::Spec;
+
+    use crate::{
+        snark::{
+            chip::{
+                goldilocks_chip::{GoldilocksChip, GoldilocksChipConfig},
+                goldilocks_extension_chip::GoldilocksExtensionChip,
+                plonk,
+            },
+            types::{
+                self,
+                assigned::AssignedExtensionFieldValue,
+                common_data::{CommonData, FriParams},
+                proof::{FriProofValues, OpeningSetValues, ProofValues},
+                ExtensionFieldValue, HashValues, MerkleCapValues,
+            },
+        },
+        stark::mock,
+    };
+
+    use super::PlonkVerifierChip;
+
+    #[derive(Clone)]
+    struct TestCircuitConfig<F: FieldExt> {
+        goldilocks_chip_config: GoldilocksChipConfig<F>,
+    }
+
+    impl<F: FieldExt> TestCircuitConfig<F> {
+        fn new(meta: &mut ConstraintSystem<F>) -> Self {
+            let main_gate_config = MainGate::configure(meta);
+            let goldilocks_chip_config = GoldilocksChip::configure(&main_gate_config);
+            Self {
+                goldilocks_chip_config,
+            }
+        }
+    }
+
+    struct ChallengeTestCircuit<
+        F: FieldExt,
+        const T: usize,
+        const T_MINUS_ONE: usize,
+        const D: usize,
+    > {
+        spec: Spec<Goldilocks, T, T_MINUS_ONE>,
+        inner_circuit_digest: HashValues<F>,
+        common_data: CommonData<F>,
+        public_inputs: Vec<Goldilocks>,
+        proof: ProofValues<F, 2>,
+        num_challenges: usize,
+        plonk_betas_expected: Vec<Goldilocks>,
+        plonk_gammas_expected: Vec<Goldilocks>,
+        plonk_alphas_expected: Vec<Goldilocks>,
+        plonk_zeta_expected: ExtensionFieldValue<F, D>,
+        lde_bits: usize,
+        fri_alpha_expected: ExtensionFieldValue<F, D>,
+        fri_betas_expected: Vec<ExtensionFieldValue<F, D>>,
+        fri_pow_response_expected: Goldilocks,
+        fri_query_indices_expected: Vec<usize>,
+    }
+
+    impl Circuit<Fr> for ChallengeTestCircuit<Fr, 12, 11, 2> {
+        type Config = TestCircuitConfig<Fr>;
+        type FloorPlanner = SimpleFloorPlanner;
+
+        fn configure(meta: &mut ConstraintSystem<Fr>) -> Self::Config {
+            TestCircuitConfig::new(meta)
+        }
+
+        fn synthesize(
+            &self,
+            config: Self::Config,
+            mut layouter: impl Layouter<Fr>,
+        ) -> Result<(), Error> {
+            let goldilocks_chip = GoldilocksChip::new(&config.goldilocks_chip_config);
+            let goldilocks_extension_chip =
+                GoldilocksExtensionChip::new(&config.goldilocks_chip_config);
+
+            layouter.assign_region(
+                || "",
+                |region| {
+                    let offset = 0;
+                    let ctx = &mut RegionCtx::new(region, offset);
+                    let plonk_verifier_chip =
+                        PlonkVerifierChip::construct(&config.goldilocks_chip_config);
+                    let circuit_digest =
+                        HashValues::assign(&plonk_verifier_chip, ctx, &self.inner_circuit_digest)?;
+                    let proof_with_pis = plonk_verifier_chip.assign_proof_with_pis(
+                        ctx,
+                        &self.public_inputs,
+                        &self.proof,
+                    )?;
+                    let public_inputs_hash = plonk_verifier_chip.get_public_inputs_hash(
+                        ctx,
+                        &proof_with_pis.public_inputs,
+                        &self.spec,
+                    )?;
+                    let challenges = plonk_verifier_chip.get_challenges(
+                        ctx,
+                        &public_inputs_hash,
+                        &circuit_digest,
+                        &self.common_data,
+                        &proof_with_pis.proof,
+                        self.num_challenges,
+                        &self.spec,
+                    )?;
+
+                    let fri_alpha_expected = ExtensionFieldValue::assign(
+                        &plonk_verifier_chip,
+                        ctx,
+                        &self.fri_alpha_expected,
+                    )?;
+                    goldilocks_extension_chip.assert_equal_extension(
+                        ctx,
+                        &fri_alpha_expected,
+                        &challenges.fri_challenges.fri_alpha,
+                    )?;
+
+                    let fri_betas_expected = self
+                        .fri_betas_expected
+                        .iter()
+                        .map(|beta| ExtensionFieldValue::assign(&plonk_verifier_chip, ctx, beta))
+                        .collect::<Result<Vec<AssignedExtensionFieldValue<Fr, 2>>, Error>>()?;
+
+                    for (expected, actual) in fri_betas_expected
+                        .iter()
+                        .zip(challenges.fri_challenges.fri_betas.iter())
+                    {
+                        goldilocks_extension_chip.assert_equal_extension(ctx, expected, actual)?;
+                    }
+
+                    let fri_pow_response_expected =
+                        goldilocks_chip.assign_constant(ctx, self.fri_pow_response_expected)?;
+                    goldilocks_chip.assert_equal(
+                        ctx,
+                        &fri_pow_response_expected,
+                        &challenges.fri_challenges.fri_pow_response,
+                    )?;
+
+                    for (expected, actual) in self
+                        .fri_query_indices_expected
+                        .iter()
+                        .zip(challenges.fri_challenges.fri_query_indices.iter())
+                    {
+                        let actual_bits = goldilocks_chip
+                            .to_bits(ctx, actual, Fr::NUM_BITS as usize)
+                            .unwrap()
+                            .iter()
+                            .take(self.lde_bits)
+                            .map(|v| v.clone())
+                            .collect_vec();
+                        let mask = 1;
+                        let mut expected = *expected;
+                        let mut expected_bits = vec![];
+                        while expected != 0 {
+                            expected_bits.push(
+                                goldilocks_chip
+                                    .assign_constant(ctx, Goldilocks((expected & mask) as u64))?,
+                            );
+                            expected >>= 1;
+                        }
+                        println!("actual bits len : {}", actual_bits.len());
+                        println!("expected bits len : {}", expected_bits.len());
+                        for (actual_bit, expected_bit) in actual_bits.iter().zip(expected_bits) {
+                            goldilocks_chip.assert_equal(ctx, actual_bit, &expected_bit)?;
+                        }
+                    }
+
+                    Ok(())
+                },
+            )?;
+
+            Ok(())
+        }
+
+        fn without_witnesses(&self) -> Self {
+            todo!()
+        }
+    }
+
+    #[test]
+    fn test_challenge() -> anyhow::Result<()> {
+        let (proof, vd, cd) = mock::gen_dummy_proof()?;
+        let spec = Spec::<Goldilocks, 12, 11>::new(8, 22);
+
+        let inner_circuit_digest = HashValues::from(vd.circuit_digest.clone());
+        let public_inputs = proof
+            .public_inputs
+            .iter()
+            .map(|pi| types::to_goldilocks(*pi))
+            .collect_vec();
+        let common_data = CommonData::from(cd.clone());
+        let num_challenges = common_data.config.num_challenges;
+
+        let challenges_expected =
+            proof.get_challenges(proof.get_public_inputs_hash(), &vd.circuit_digest, &cd)?;
+        let plonk_betas_expected = challenges_expected
+            .plonk_betas
+            .iter()
+            .map(|e| types::to_goldilocks(*e))
+            .collect::<Vec<Goldilocks>>();
+        let plonk_gammas_expected = challenges_expected
+            .plonk_gammas
+            .iter()
+            .map(|e| types::to_goldilocks(*e))
+            .collect::<Vec<Goldilocks>>();
+        let plonk_alphas_expected = challenges_expected
+            .plonk_alphas
+            .iter()
+            .map(|e| types::to_goldilocks(*e))
+            .collect::<Vec<Goldilocks>>();
+
+        let plonk_zeta_expected = ExtensionFieldValue::from(
+            (challenges_expected.plonk_zeta as QuadraticExtension<GoldilocksField>).0,
+        );
+
+        let fri_alpha_expected = ExtensionFieldValue::from(
+            (challenges_expected.fri_challenges.fri_alpha as QuadraticExtension<GoldilocksField>).0,
+        );
+        let fri_betas_expected = challenges_expected
+            .fri_challenges
+            .fri_betas
+            .iter()
+            .map(|&fri_beta| {
+                ExtensionFieldValue::from((fri_beta as QuadraticExtension<GoldilocksField>).0)
+            })
+            .collect();
+        let fri_pow_response_expected =
+            types::to_goldilocks(challenges_expected.fri_challenges.fri_pow_response);
+        let fri_query_indices_expected = challenges_expected.fri_challenges.fri_query_indices;
+
+        let proof = ProofValues::<Fr, 2>::from(proof.proof);
+
+        let circuit: ChallengeTestCircuit<Fr, 12, 11, 2> = ChallengeTestCircuit {
+            spec,
+            inner_circuit_digest,
+            common_data,
+            public_inputs,
+            proof,
+            num_challenges,
+            plonk_betas_expected,
+            plonk_gammas_expected,
+            plonk_alphas_expected,
+            plonk_zeta_expected,
+            fri_alpha_expected,
+            fri_betas_expected,
+            fri_pow_response_expected,
+            fri_query_indices_expected,
+            lde_bits: cd.fri_params.lde_bits(),
+        };
+        let instance = vec![vec![]];
+        let _prover = MockProver::run(17, &circuit, instance).unwrap();
+        _prover.assert_satisfied();
 
         Ok(())
     }

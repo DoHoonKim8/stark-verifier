@@ -3,12 +3,10 @@ use halo2_proofs::{
     plonk::Error,
 };
 use halo2curves::goldilocks::fp::Goldilocks;
-use halo2wrong_maingate::{
-    AssignedValue, MainGate, MainGateConfig, MainGateInstructions, RegionCtx, Term,
-};
+use halo2wrong_maingate::{AssignedValue, RegionCtx, Term};
 use poseidon::{SparseMDSMatrix, Spec, State};
 
-use super::goldilocks_chip::{self, GoldilocksChip, GoldilocksChipConfig};
+use super::goldilocks_chip::{GoldilocksChip, GoldilocksChipConfig};
 
 /// `AssignedState` is composed of `T` sized assigned values
 #[derive(Debug, Clone)]
@@ -60,13 +58,19 @@ impl<F: FieldExt, const T: usize, const T_MINUS_ONE: usize, const RATE: usize>
         element: &AssignedValue<F>,
     ) -> Result<(), Error> {
         self.output_buffer.clear();
-
         self.absorbing.push(element.clone());
+        Ok(())
+    }
 
-        if self.absorbing.len() == RATE {
-            self.duplexing(ctx)?;
+    fn absorb_buffered_inputs(&mut self, ctx: &mut RegionCtx<'_, F>) -> Result<(), Error> {
+        if self.absorbing.is_empty() {
+            return Ok(());
         }
-
+        let buffered_inputs = self.absorbing.clone();
+        for input_chunk in buffered_inputs.chunks(RATE) {
+            self.duplexing(ctx, input_chunk)?;
+        }
+        self.absorbing.clear();
         Ok(())
     }
 
@@ -77,8 +81,11 @@ impl<F: FieldExt, const T: usize, const T_MINUS_ONE: usize, const RATE: usize>
     ) -> Result<Vec<AssignedValue<F>>, Error> {
         let mut output = vec![];
         for _i in 0..num_outputs {
-            if !self.absorbing.is_empty() || self.output_buffer.is_empty() {
-                self.duplexing(ctx)?;
+            self.absorb_buffered_inputs(ctx)?;
+
+            if self.output_buffer.is_empty() {
+                self.permutation(ctx)?;
+                self.output_buffer = self.state.0[0..RATE].to_vec();
             }
             output.push(self.output_buffer.pop().unwrap())
         }
@@ -253,7 +260,7 @@ impl<F: FieldExt, const T: usize, const T_MINUS_ONE: usize, const RATE: usize>
     }
 
     /// Constrains poseidon permutation while mutating the given state
-    fn permutation(&mut self, ctx: &mut RegionCtx<'_, F>) -> Result<(), Error> {
+    pub fn permutation(&mut self, ctx: &mut RegionCtx<'_, F>) -> Result<(), Error> {
         let r_f = self.r_f_half();
         let mds = self.mds();
         let pre_sparse_mds = self.pre_sparse_mds();
@@ -288,12 +295,14 @@ impl<F: FieldExt, const T: usize, const T_MINUS_ONE: usize, const RATE: usize>
         Ok(())
     }
 
-    fn duplexing(&mut self, ctx: &mut RegionCtx<'_, F>) -> Result<(), Error> {
-        for (word, input) in self.state.0.iter_mut().zip(self.absorbing.iter()) {
+    fn duplexing(
+        &mut self,
+        ctx: &mut RegionCtx<'_, F>,
+        input: &[AssignedValue<F>],
+    ) -> Result<(), Error> {
+        for (word, input) in self.state.0.iter_mut().zip(input.iter()) {
             *word = input.clone();
         }
-        self.absorbing.clear();
-
         self.permutation(ctx)?;
 
         self.output_buffer.clear();
@@ -327,5 +336,18 @@ impl<F: FieldExt, const T: usize, const T_MINUS_ONE: usize, const RATE: usize>
             }
             self.permutation(ctx)?;
         }
+    }
+
+    pub fn permute(
+        &mut self,
+        ctx: &mut RegionCtx<'_, F>,
+        input: Vec<AssignedValue<F>>,
+        num_output: usize,
+    ) -> Result<Vec<AssignedValue<F>>, Error> {
+        for (word, input) in self.state.0.iter_mut().zip(input.iter()) {
+            *word = input.clone();
+        }
+        self.permutation(ctx)?;
+        Ok(self.state.0[0..num_output].to_vec())
     }
 }

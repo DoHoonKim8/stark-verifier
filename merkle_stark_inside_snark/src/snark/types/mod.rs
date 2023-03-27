@@ -1,7 +1,6 @@
 use std::marker::PhantomData;
 
 use halo2_proofs::arithmetic::Field;
-use halo2_proofs::circuit::Value;
 use halo2_proofs::plonk::Error;
 use halo2curves::{goldilocks::fp::Goldilocks, FieldExt};
 use halo2wrong::RegionCtx;
@@ -15,10 +14,10 @@ use plonky2::{
 use self::assigned::{AssignedExtensionFieldValue, AssignedHashValues, AssignedMerkleCapValues};
 
 use crate::snark::chip::plonk::plonk_verifier_chip::PlonkVerifierChip;
-use crate::stark::merkle::F;
 
 pub mod assigned;
 pub mod common_data;
+pub mod fri;
 pub mod proof;
 pub mod verification_key;
 

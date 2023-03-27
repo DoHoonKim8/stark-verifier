@@ -9,7 +9,7 @@ pub struct AssignedHashValues<F: FieldExt> {
 #[derive(Clone)]
 pub struct AssignedMerkleCapValues<F: FieldExt>(pub Vec<AssignedHashValues<F>>);
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct AssignedExtensionFieldValue<F: FieldExt, const D: usize>(pub [AssignedValue<F>; D]);
 
 pub struct AssignedOpeningSetValues<F: FieldExt, const D: usize> {
@@ -22,28 +22,73 @@ pub struct AssignedOpeningSetValues<F: FieldExt, const D: usize> {
     pub quotient_polys: Vec<AssignedExtensionFieldValue<F, D>>,
 }
 
+impl<F: FieldExt, const D: usize> AssignedOpeningSetValues<F, D> {
+    pub(crate) fn to_fri_openings(&self) -> AssignedFriOpenings<F, D> {
+        let zeta_batch = AssignedFriOpeningBatch {
+            values: [
+                self.constants.as_slice(),
+                self.plonk_sigmas.as_slice(),
+                self.wires.as_slice(),
+                self.plonk_zs.as_slice(),
+                self.partial_products.as_slice(),
+                self.quotient_polys.as_slice(),
+            ]
+            .concat(),
+        };
+        let zeta_next_batch = AssignedFriOpeningBatch {
+            values: self.plonk_zs_next.clone(),
+        };
+        AssignedFriOpenings {
+            batches: vec![zeta_batch, zeta_next_batch],
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct AssignedMerkleProofValues<F: FieldExt> {
     pub siblings: Vec<AssignedHashValues<F>>,
 }
 
+#[derive(Clone)]
 pub struct AssignedFriInitialTreeProofValues<F: FieldExt> {
     pub evals_proofs: Vec<(Vec<AssignedValue<F>>, AssignedMerkleProofValues<F>)>,
 }
 
+impl<F: FieldExt> AssignedFriInitialTreeProofValues<F> {
+    pub(crate) fn unsalted_eval(
+        &self,
+        oracle_index: usize,
+        poly_index: usize,
+        salted: bool,
+    ) -> AssignedValue<F> {
+        self.unsalted_evals(oracle_index, salted)[poly_index].clone()
+    }
+
+    fn unsalted_evals(&self, oracle_index: usize, salted: bool) -> &[AssignedValue<F>] {
+        let evals = &self.evals_proofs[oracle_index].0;
+        let salt_size = if salted { 4 } else { 0 };
+        &evals[..evals.len() - salt_size]
+    }
+}
+
+#[derive(Clone)]
 pub struct AssignedFriQueryStepValues<F: FieldExt, const D: usize> {
     pub evals: Vec<AssignedExtensionFieldValue<F, D>>,
     pub merkle_proof: AssignedMerkleProofValues<F>,
 }
 
+#[derive(Clone)]
 pub struct AssignedFriQueryRoundValues<F: FieldExt, const D: usize> {
     pub initial_trees_proof: AssignedFriInitialTreeProofValues<F>,
     pub steps: Vec<AssignedFriQueryStepValues<F, D>>,
 }
 
+#[derive(Clone)]
 pub struct AssignedPolynomialCoeffsExtValues<F: FieldExt, const D: usize>(
     pub Vec<AssignedExtensionFieldValue<F, D>>,
 );
 
+#[derive(Clone)]
 pub struct AssignedFriProofValues<F: FieldExt, const D: usize> {
     pub commit_phase_merkle_cap_values: Vec<AssignedMerkleCapValues<F>>,
     pub query_round_proofs: Vec<AssignedFriQueryRoundValues<F, D>>,
@@ -70,6 +115,7 @@ pub struct AssignedVerificationKeyValues<F: FieldExt> {
     pub circuit_digest: AssignedHashValues<F>,
 }
 
+#[derive(Clone)]
 pub struct AssignedFriChallenges<F: FieldExt, const D: usize> {
     pub fri_alpha: AssignedExtensionFieldValue<F, D>,
     pub fri_betas: Vec<AssignedExtensionFieldValue<F, D>>,

@@ -4,14 +4,15 @@ use halo2_proofs::{arithmetic::Field, circuit::Value, plonk::Error};
 use halo2curves::{goldilocks::fp::Goldilocks, FieldExt};
 use halo2wrong::RegionCtx;
 use halo2wrong_maingate::{
-    big_to_fe, fe_to_big, AssignedValue, CombinationOption, CombinationOptionCommon, MainGate,
-    MainGateConfig, MainGateInstructions, Term,
+    big_to_fe, decompose, fe_to_big, power_of_two, AssignedCondition, AssignedValue,
+    CombinationOptionCommon, MainGate, MainGateConfig, MainGateInstructions, Term,
 };
+use itertools::Itertools;
 use num_bigint::BigUint;
 use num_integer::Integer;
-use num_traits::Num;
+use num_traits::{Num, Zero};
 
-// TODO : use range check config
+// TODO : range check
 #[derive(Clone, Debug)]
 pub struct GoldilocksChipConfig<F: FieldExt> {
     pub main_gate_config: MainGateConfig,
@@ -46,6 +47,11 @@ impl<F: FieldExt> GoldilocksChip<F> {
 
     pub fn goldilocks_to_native_fe(&self, goldilocks: Goldilocks) -> F {
         big_to_fe::<F>(fe_to_big::<Goldilocks>(goldilocks))
+    }
+
+    // assumes `fe` is already in goldilocks field
+    fn native_fe_to_goldilocks(&self, fe: F) -> Goldilocks {
+        big_to_fe::<Goldilocks>(fe_to_big::<F>(fe))
     }
 
     pub fn assign_value(
@@ -272,6 +278,7 @@ impl<F: FieldExt> GoldilocksChip<F> {
         self.assert_equal(ctx, a, &zero)
     }
 
+    // TODO : optimize, underconstrained?
     pub fn compose(
         &self,
         ctx: &mut RegionCtx<'_, F>,
@@ -293,5 +300,193 @@ impl<F: FieldExt> GoldilocksChip<F> {
         );
         let composed = self.assign_value(ctx, composed)?;
         Ok(composed)
+    }
+
+    fn assign_bit(
+        &self,
+        ctx: &mut RegionCtx<'_, F>,
+        bit: Value<F>,
+    ) -> Result<AssignedValue<F>, Error> {
+        let main_gate = self.main_gate();
+        main_gate.assign_bit(ctx, bit)
+    }
+
+    fn invert(
+        &self,
+        ctx: &mut RegionCtx<'_, F>,
+        a: &AssignedValue<F>,
+    ) -> Result<(AssignedValue<F>, AssignedCondition<F>), Error> {
+        let main_gate = self.main_gate();
+        let goldilocks_modulus = self.goldilocks_modulus();
+        let (one, zero) = (Goldilocks::one(), Goldilocks::zero());
+
+        // Returns 'r' as a condition bit that defines if inversion successful or not
+        // First enfoce 'r' to be a bit
+        // (a * a') - 1 + r = p * q
+        // r * a' - r = 0
+        // if r = 1 then a' = 1
+        // if r = 0 then a' = 1/a
+
+        // Witness layout:
+        // | A | B  | C |
+        // | - | -- | - |
+        // | a | a' | r |
+        // | r | a' | r |
+
+        let (r, a_inv) = a
+            .value()
+            .map(|a| {
+                Option::from(self.native_fe_to_goldilocks(*a).invert())
+                    .map(|a_inverted| {
+                        (
+                            self.goldilocks_to_native_fe(zero),
+                            self.goldilocks_to_native_fe(a_inverted),
+                        )
+                    })
+                    .unwrap_or_else(|| {
+                        (
+                            self.goldilocks_to_native_fe(one),
+                            self.goldilocks_to_native_fe(one),
+                        )
+                    })
+            })
+            .unzip();
+
+        let r = self.assign_bit(ctx, r)?;
+
+        // (a * a') - 1 + r = p * q
+        let quotient = a
+            .value()
+            .zip(a_inv)
+            .zip(r.value())
+            .map(|((&a, a_inv), &r)| {
+                let (q, r) = (fe_to_big(a * a_inv - F::one() + r)).div_rem(&goldilocks_modulus);
+                assert_eq!(r, BigUint::zero());
+                big_to_fe::<F>(q)
+            });
+
+        let a_inv = main_gate
+            .apply(
+                ctx,
+                [
+                    Term::assigned_to_mul(a),
+                    Term::unassigned_to_mul(a_inv),
+                    Term::unassigned_to_sub(Value::known(self.goldilocks_to_native_fe(one))),
+                    Term::assigned_to_add(&r),
+                    Term::Unassigned(quotient, -big_to_fe::<F>(goldilocks_modulus)),
+                ],
+                F::zero(),
+                CombinationOptionCommon::OneLinerMul.into(),
+            )?
+            .swap_remove(1);
+
+        // r * a' - r = 0
+        main_gate.apply(
+            ctx,
+            [
+                Term::assigned_to_mul(&r),
+                Term::assigned_to_mul(&a_inv),
+                Term::assigned_to_sub(&r),
+            ],
+            F::zero(),
+            CombinationOptionCommon::OneLinerMul.into(),
+        )?;
+
+        Ok((a_inv, r))
+    }
+
+    // TODO : is it okay?
+    pub fn select(
+        &self,
+        ctx: &mut RegionCtx<'_, F>,
+        a: &AssignedValue<F>,
+        b: &AssignedValue<F>,
+        cond: &AssignedCondition<F>,
+    ) -> Result<AssignedValue<F>, Error> {
+        let main_gate = self.main_gate();
+        main_gate.select(ctx, a, b, cond)
+    }
+
+    pub fn is_zero(
+        &self,
+        ctx: &mut RegionCtx<'_, F>,
+        a: &AssignedValue<F>,
+    ) -> Result<AssignedCondition<F>, Error> {
+        let (_, is_zero) = self.invert(ctx, a)?;
+        Ok(is_zero)
+    }
+
+    /// Assigns array values of bit values which is equal to decomposition of
+    /// given assigned value
+    pub fn to_bits(
+        &self,
+        ctx: &mut RegionCtx<'_, F>,
+        composed: &AssignedValue<F>,
+        number_of_bits: usize,
+    ) -> Result<Vec<AssignedCondition<F>>, Error> {
+        assert!(number_of_bits <= F::NUM_BITS as usize);
+
+        let decomposed_value = composed.value().map(|value| {
+            decompose(self.native_fe_to_goldilocks(*value), number_of_bits, 1)
+                .iter()
+                .map(|v| self.goldilocks_to_native_fe(*v))
+                .collect::<Vec<F>>()
+        });
+
+        let (bits, bases): (Vec<_>, Vec<_>) = (0..number_of_bits)
+            .map(|i| {
+                let bit = decomposed_value.as_ref().map(|bits| bits[i]);
+                let bit = self.assign_bit(ctx, bit)?;
+                let base = power_of_two::<F>(i);
+                Ok((bit, base))
+            })
+            .collect::<Result<Vec<_>, Error>>()?
+            .into_iter()
+            .unzip();
+
+        let terms = bits
+            .iter()
+            .zip(bases.into_iter())
+            .map(|(bit, base)| Term::Assigned(bit, base))
+            .collect::<Vec<_>>();
+        let result = self.compose(ctx, &terms, Goldilocks::zero())?;
+        self.assert_equal(ctx, &result, composed)?;
+        Ok(bits)
+    }
+
+    pub fn from_bits(
+        &self,
+        ctx: &mut RegionCtx<'_, F>,
+        bits: &Vec<AssignedValue<F>>,
+    ) -> Result<AssignedValue<F>, Error> {
+        let terms = bits
+            .iter()
+            .enumerate()
+            .map(|(i, bit)| Term::Assigned(bit, power_of_two(i)))
+            .collect_vec();
+        self.compose(ctx, &terms[..], Goldilocks::zero())
+    }
+
+    pub fn exp_power_of_2(
+        &self,
+        ctx: &mut RegionCtx<'_, F>,
+        a: &AssignedValue<F>,
+        power_log: usize,
+    ) -> Result<AssignedValue<F>, Error> {
+        let mut result = a.clone();
+        for _ in 0..power_log {
+            result = self.mul(ctx, &result, &result)?;
+        }
+        Ok(result)
+    }
+
+    pub fn is_equal(
+        &self,
+        ctx: &mut RegionCtx<'_, F>,
+        a: &AssignedValue<F>,
+        b: &AssignedValue<F>,
+    ) -> Result<AssignedCondition<F>, Error> {
+        let a_mimus_b = self.sub(ctx, a, b)?;
+        self.is_zero(ctx, &a_mimus_b)
     }
 }
