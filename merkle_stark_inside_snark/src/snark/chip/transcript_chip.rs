@@ -127,7 +127,6 @@ mod tests {
 
     struct TestCircuit<F: FieldExt, const T: usize, const T_MINUS_ONE: usize> {
         spec: Spec<Goldilocks, T, T_MINUS_ONE>,
-        n: usize,
         num_output: usize,
         inputs: Vec<Goldilocks>,
         expected: Vec<Goldilocks>,
@@ -196,10 +195,9 @@ mod tests {
 
         let circuit = TestCircuit {
             spec,
-            n: inputs.len(),
             num_output: 1,
-            inputs: inputs,
-            expected: expected,
+            inputs,
+            expected,
             _marker: PhantomData,
         };
         let instance = vec![vec![]];

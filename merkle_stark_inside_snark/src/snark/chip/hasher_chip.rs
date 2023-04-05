@@ -348,6 +348,16 @@ impl<F: FieldExt, const T: usize, const T_MINUS_ONE: usize, const RATE: usize>
             *word = input.clone();
         }
         self.permutation(ctx)?;
-        Ok(self.state.0[0..num_output].to_vec())
+
+        let mut outputs = vec![];
+        loop {
+            for item in self.state.0.iter().take(RATE) {
+                outputs.push(item.clone());
+                if outputs.len() == num_output {
+                    return Ok(outputs);
+                }
+            }
+            self.permutation(ctx)?;
+        }
     }
 }

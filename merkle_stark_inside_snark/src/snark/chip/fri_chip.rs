@@ -3,6 +3,7 @@ use halo2curves::{goldilocks::fp::Goldilocks, group::ff::PrimeField, FieldExt};
 use halo2wrong::RegionCtx;
 use halo2wrong_maingate::{power_of_two, AssignedValue, Term};
 use itertools::Itertools;
+use plonky2::util::reverse_index_bits_in_place;
 use poseidon::Spec;
 
 use crate::snark::types::{
@@ -29,7 +30,7 @@ pub struct FriVerifierChip<F: FieldExt> {
     offset: AssignedValue<F>,
     /// The degree of the purported codeword, measured in bits.
     fri_params: FriParams,
-    /// merkle proofs for the initial polynomials before batching
+    /// merkle caps for the initial polynomials before batching
     initial_merkle_caps: Vec<AssignedMerkleCapValues<F>>,
     fri_challenges: AssignedFriChallenges<F, 2>,
     fri_openings: AssignedFriOpenings<F, 2>,
@@ -109,13 +110,12 @@ impl<F: FieldExt> FriVerifierChip<F> {
         &self,
         ctx: &mut RegionCtx<'_, F>,
         x_index_bits: &[AssignedValue<F>],
+        cap_index: &AssignedValue<F>,
         initial_trees_proof: &AssignedFriInitialTreeProofValues<F>,
-        round: usize,
     ) -> Result<(), Error> {
         let merkle_proof_chip =
             MerkleProofChip::new(&self.goldilocks_chip_config, self.spec.clone());
-        let cap_index = self.calculate_cap_index(ctx, x_index_bits)?;
-        for (i, ((evals, merkle_proof), cap)) in initial_trees_proof
+        for (_, ((evals, merkle_proof), cap)) in initial_trees_proof
             .evals_proofs
             .iter()
             .zip(self.initial_merkle_caps.clone())
@@ -137,7 +137,7 @@ impl<F: FieldExt> FriVerifierChip<F> {
         &self,
         ctx: &mut RegionCtx<'_, F>,
         // `x` is the initially selected point in FRI
-        x: AssignedValue<F>,
+        x: &AssignedValue<F>,
         initial_trees_proof: &AssignedFriInitialTreeProofValues<F>,
         reduced_openings: &[AssignedExtensionFieldValue<F, 2>],
     ) -> Result<AssignedExtensionFieldValue<F, 2>, Error> {
@@ -160,11 +160,12 @@ impl<F: FieldExt> FriVerifierChip<F> {
                     initial_trees_proof.unsalted_eval(p.oracle_index, p.polynomial_index, salted)
                 })
                 .collect_vec();
-            let reduced_evals = goldilocks_extension_chip.reduce(ctx, &alpha, &evals)?;
+            let reduced_evals =
+                goldilocks_extension_chip.reduce_base_field_terms_extension(ctx, &alpha, &evals)?;
             let numerator =
                 goldilocks_extension_chip.sub_extension(ctx, &reduced_evals, reduced_openings)?;
             let denominator = goldilocks_extension_chip.sub_extension(ctx, &x, point)?;
-            sum = goldilocks_extension_chip.shift(ctx, &alpha, evals.len(), &reduced_evals)?;
+            sum = goldilocks_extension_chip.shift(ctx, &alpha, evals.len(), &sum)?;
             sum =
                 goldilocks_extension_chip.div_add_extension(ctx, &numerator, &denominator, &sum)?;
         }
@@ -172,35 +173,88 @@ impl<F: FieldExt> FriVerifierChip<F> {
     }
 
     /// obtain subgroup element at index `x_index_bits` from the domain
-    /// `x_index_bits` should be represented in little-endian order
     fn x_from_subgroup(
         &self,
         ctx: &mut RegionCtx<'_, F>,
         x_index_bits: &[AssignedValue<F>],
     ) -> Result<AssignedValue<F>, Error> {
         let goldilocks_chip = self.goldilocks_chip();
-        let lde_bits = self.fri_params.lde_bits();
+        let lde_size = 1 << self.fri_params.lde_bits();
 
-        let g = Goldilocks::multiplicative_generator();
         // `omega` is the root of unity for initial domain in FRI
         // TODO : add function for primitive root of unity in halo2curves
-        let omega = g.pow(&[
-            ((halo2curves::goldilocks::fp::MODULUS - 1) / (1 << lde_bits - 1)).to_le(),
+        let omega = Goldilocks::multiplicative_generator().pow(&[
+            ((halo2curves::goldilocks::fp::MODULUS - 1) / lde_size).to_le(),
             0,
             0,
             0,
         ]);
-        let mut x = goldilocks_chip.assign_constant(ctx, Goldilocks::one())?;
-        for (i, bit) in x_index_bits.iter().enumerate() {
-            let is_zero_bit = goldilocks_chip.is_zero(ctx, bit)?;
-            let one = goldilocks_chip.assign_constant(ctx, Goldilocks::one())?;
-
-            let power = u64::from(power_of_two::<Goldilocks>(i)).to_le();
-            let base = goldilocks_chip.assign_constant(ctx, omega.pow(&[power, 0, 0, 0]))?;
-            let multiplicand = goldilocks_chip.select(ctx, &one, &base, &is_zero_bit)?;
-            x = goldilocks_chip.mul(ctx, &x, &multiplicand)?;
-        }
+        let x = goldilocks_chip.exp_from_bits(ctx, omega, &x_index_bits[..])?;
         Ok(x)
+    }
+
+    fn next_eval(
+        &self,
+        ctx: &mut RegionCtx<'_, F>,
+        x_index_within_coset_bits: &[AssignedValue<F>],
+        x: &AssignedValue<F>,
+        evals: &Vec<AssignedExtensionFieldValue<F, 2>>,
+        arity_bits: usize,
+        beta: &AssignedExtensionFieldValue<F, 2>,
+    ) -> Result<AssignedExtensionFieldValue<F, 2>, Error> {
+        let goldilocks_chip = self.goldilocks_chip();
+        let goldilocks_extension_chip = self.goldilocks_extension_chip();
+        // computes `P'(x^arity)` where `arity = 1 << arity_bits` from `P(x*g^i), (i = 0, ..., arity)` where
+        // g is `arity`-th primitive root of unity. P' is FRI folded polynomial.
+        let arity = 1 << arity_bits;
+        let g = Goldilocks::multiplicative_generator().pow(&[
+            ((halo2curves::goldilocks::fp::MODULUS - 1) / arity as u64).to_le(),
+            0,
+            0,
+            0,
+        ]);
+        let g_inv = g.invert().unwrap();
+        let g = goldilocks_chip.assign_constant(ctx, g)?;
+
+        // The evaluation vector needs to be reordered first.
+        let mut evals = evals.to_vec();
+        reverse_index_bits_in_place(&mut evals);
+
+        let start = goldilocks_chip.exp_from_bits(
+            ctx,
+            g_inv,
+            &x_index_within_coset_bits
+                .iter()
+                .rev()
+                .cloned()
+                .collect_vec()[..],
+        )?;
+        let coset_start = goldilocks_chip.mul(ctx, &start, x)?;
+
+        // The answer is gotten by interpolating {(x*g^i, P(x*g^i))} and evaluating at beta.
+        let mut g_power = goldilocks_chip.assign_constant(ctx, Goldilocks::one())?;
+        let mut points = vec![];
+        for (_, eval) in evals.iter().enumerate() {
+            let x = goldilocks_chip.mul(ctx, &coset_start, &g_power)?;
+            let x = goldilocks_extension_chip.convert_to_extension(ctx, &x)?;
+            g_power = goldilocks_chip.mul(ctx, &g_power, &g)?;
+            points.push((x, eval.clone()));
+        }
+        // TODO : For now, only 2-arity is supported. Otherwise, FFT implementation over extension Field is required.
+        // a0 -> a1
+        // b0 -> b1
+        // x  -> a1 + (x-a0)*(b1-a1)/(b0-a0)
+        let (a0, a1) = &points[0];
+        let (b0, b1) = &points[1];
+
+        // a1 + (x - a0) * (b1 - a1) / (b0 - a0)
+        let x_minus_a0 = goldilocks_extension_chip.sub_extension(ctx, beta, a0)?;
+        let b1_minus_a1 = goldilocks_extension_chip.sub_extension(ctx, b1, a1)?;
+        let numerator = goldilocks_extension_chip.mul_extension(ctx, &x_minus_a0, &b1_minus_a1)?;
+        let denominator = goldilocks_extension_chip.sub_extension(ctx, b0, a0)?;
+        let result =
+            goldilocks_extension_chip.div_add_extension(ctx, &numerator, &denominator, a1)?;
+        Ok(result)
     }
 
     fn check_consistency(
@@ -209,9 +263,9 @@ impl<F: FieldExt> FriVerifierChip<F> {
         x_index: &AssignedValue<F>,
         round_proof: &AssignedFriQueryRoundValues<F, 2>,
         reduced_openings: &[AssignedExtensionFieldValue<F, 2>],
-        round: usize,
     ) -> Result<(), Error> {
         let goldilocks_chip = self.goldilocks_chip();
+        let goldilocks_extension_chip = self.goldilocks_extension_chip();
         let lde_bits = self.fri_params.lde_bits();
 
         // `x_index` is the index of point selected from initial domain
@@ -219,23 +273,25 @@ impl<F: FieldExt> FriVerifierChip<F> {
             .to_bits(ctx, x_index, F::NUM_BITS as usize)?
             .iter()
             .take(lde_bits)
-            .map(|v| v.clone())
+            .cloned()
             .collect_vec();
 
+        let cap_index = self.calculate_cap_index(ctx, &x_index_bits[..])?;
         // verify evaluation proofs for initial polynomials at `x_index` point
         self.verify_initial_merkle_proof(
             ctx,
             &x_index_bits,
+            &cap_index,
             &round_proof.initial_trees_proof,
-            round,
         )?;
 
-        let mut x_from_subgroup = self.x_from_subgroup(ctx, &x_index_bits)?;
-        let x = goldilocks_chip.mul(ctx, &self.offset, &x_from_subgroup)?;
+        let x_from_subgroup =
+            self.x_from_subgroup(ctx, &x_index_bits.iter().rev().cloned().collect_vec())?;
+        let mut x_from_subgroup = goldilocks_chip.mul(ctx, &self.offset, &x_from_subgroup)?;
 
         let mut prev_eval = self.batch_initial_polynomials(
             ctx,
-            x,
+            &x_from_subgroup,
             &round_proof.initial_trees_proof,
             reduced_openings,
         )?;
@@ -244,7 +300,6 @@ impl<F: FieldExt> FriVerifierChip<F> {
             let evals = &round_proof.steps[i].evals;
 
             // Split x_index into the index of the coset x is in, and the index of x within that coset.
-            // reminder : `x_index_bits` is in little-endian, and it is folded by 2^{arity_bits}
             let coset_index_bits = x_index_bits[arity_bits..].to_vec();
             let x_index_within_coset_bits = &x_index_bits[..arity_bits];
             let x_index_within_coset =
@@ -260,33 +315,55 @@ impl<F: FieldExt> FriVerifierChip<F> {
                 goldilocks_chip.assert_equal(ctx, &prev_eval.0[i], &next_eval_i)?;
             }
 
-            // computes `P'(x^arity)` where `arity = 1 << arity_bits` from `P(x*g^i), (i = 0, ..., arity)` where
-            // g is `arity`-th primitive root of unity. P' is FRI folded polynomial.
-            let arity = 1 << arity_bits;
-            // challenge `beta` for folding
+            prev_eval = self.next_eval(
+                ctx,
+                x_index_within_coset_bits,
+                &x_from_subgroup,
+                evals,
+                arity_bits,
+                &self.fri_challenges.fri_betas[i],
+            )?;
+
+            let merkle_proof_chip =
+                MerkleProofChip::new(&self.goldilocks_chip_config, self.spec.clone());
+            merkle_proof_chip.verify_merkle_proof_to_cap_with_cap_index(
+                ctx,
+                &evals.iter().flat_map(|eval| eval.0.clone()).collect_vec(),
+                &coset_index_bits,
+                &cap_index,
+                &self.fri_proof.commit_phase_merkle_cap_values[i],
+                &round_proof.steps[i].merkle_proof,
+            )?;
 
             // Update the point x to x^arity.
             x_from_subgroup = goldilocks_chip.exp_power_of_2(ctx, &x_from_subgroup, arity_bits)?;
 
             x_index_bits = coset_index_bits;
         }
+
+        // Final check of FRI. After all the reductions, we check that the final polynomial is equal
+        // to the one sent by the prover.
+        let final_poly_coeffs = &self.fri_proof.final_poly.0;
+        let final_poly_eval = goldilocks_extension_chip.reduce_extension_field_terms_base(
+            ctx,
+            &x_from_subgroup,
+            final_poly_coeffs,
+        )?;
+        goldilocks_extension_chip.assert_equal_extension(ctx, &prev_eval, &final_poly_eval)?;
         Ok(())
     }
 
     pub fn verify_fri_proof(&self, ctx: &mut RegionCtx<'_, F>) -> Result<(), Error> {
         // this value is the same across all queries
         let reduced_openings = self.compute_reduced_openings(ctx)?;
-
         for (i, round_proof) in self.fri_proof.query_round_proofs.iter().enumerate() {
             self.check_consistency(
                 ctx,
                 &self.fri_challenges.fri_query_indices[i],
                 round_proof,
                 &reduced_openings,
-                i,
             )?;
         }
-
         Ok(())
     }
 }

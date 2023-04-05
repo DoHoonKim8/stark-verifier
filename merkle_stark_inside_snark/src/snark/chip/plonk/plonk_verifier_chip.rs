@@ -170,9 +170,6 @@ impl<F: FieldExt> PlonkVerifierChip<F> {
         let fri_pow_response = transcript_chip.squeeze(ctx, 1)?[0].clone();
 
         let num_fri_queries = common_data.config.fri_config.num_query_rounds;
-        // let fri_query_indices = (0..num_fri_queries)
-        //     .map(|_| transcript_chip.squeeze(ctx, 1).unwrap()[0].clone())
-        //     .collect();
         let fri_query_indices = transcript_chip.squeeze(ctx, num_fri_queries)?;
 
         Ok(AssignedProofChallenges {
@@ -255,8 +252,7 @@ impl<F: FieldExt> PlonkVerifierChip<F> {
         ];
 
         let g = Goldilocks::multiplicative_generator().pow(&[
-            ((halo2curves::goldilocks::fp::MODULUS - 1) / (1 << common_data.degree_bits() - 1))
-                .to_le(),
+            ((halo2curves::goldilocks::fp::MODULUS - 1) / (1 << common_data.degree_bits())).to_le(),
             0,
             0,
             0,
@@ -548,7 +544,7 @@ mod tests {
             lde_bits: cd.fri_params.lde_bits(),
         };
         let instance = vec![vec![]];
-        let _prover = MockProver::run(17, &circuit, instance).unwrap();
+        let _prover = MockProver::run(19, &circuit, instance).unwrap();
         _prover.assert_satisfied();
 
         Ok(())

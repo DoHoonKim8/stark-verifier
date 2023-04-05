@@ -18,7 +18,7 @@ fn run_verifier_circuit<F: FieldExt>(
 ) {
     let verifier_circuit = Verifier::new(proof, public_inputs, vk, common_data, spec);
     let instance = vec![vec![]];
-    let _prover = MockProver::run(22, &verifier_circuit, instance).unwrap();
+    let _prover = MockProver::run(23, &verifier_circuit, instance).unwrap();
     _prover.assert_satisfied()
 }
 

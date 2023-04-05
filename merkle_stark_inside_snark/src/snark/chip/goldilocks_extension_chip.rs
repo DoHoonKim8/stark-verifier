@@ -163,7 +163,7 @@ impl<F: FieldExt> GoldilocksExtensionChip<F> {
     ) -> Result<AssignedExtensionFieldValue<F, 2>, Error> {
         let goldilocks_chip = self.goldilocks_chip();
         let elements = (0..2)
-            .map(|i| goldilocks_chip.assign_constant(ctx, Goldilocks::zero()))
+            .map(|_| goldilocks_chip.assign_constant(ctx, Goldilocks::zero()))
             .collect::<Result<Vec<AssignedValue<F>>, Error>>()?;
         Ok(AssignedExtensionFieldValue(elements.try_into().unwrap()))
     }
@@ -329,7 +329,7 @@ impl<F: FieldExt> GoldilocksExtensionChip<F> {
         Ok(result)
     }
 
-    pub fn reduce(
+    pub fn reduce_base_field_terms_extension(
         &self,
         ctx: &mut RegionCtx<'_, F>,
         base: &AssignedExtensionFieldValue<F, 2>,
@@ -340,6 +340,16 @@ impl<F: FieldExt> GoldilocksExtensionChip<F> {
             .map(|t| self.convert_to_extension(ctx, t))
             .collect::<Result<Vec<AssignedExtensionFieldValue<F, 2>>, Error>>()?;
         self.reduce_extension(ctx, base, &terms)
+    }
+
+    pub fn reduce_extension_field_terms_base(
+        &self,
+        ctx: &mut RegionCtx<'_, F>,
+        base: &AssignedValue<F>,
+        terms: &Vec<AssignedExtensionFieldValue<F, 2>>,
+    ) -> Result<AssignedExtensionFieldValue<F, 2>, Error> {
+        let base = self.convert_to_extension(ctx, base)?;
+        self.reduce_extension(ctx, &base, terms)
     }
 
     // shifted * factor^power

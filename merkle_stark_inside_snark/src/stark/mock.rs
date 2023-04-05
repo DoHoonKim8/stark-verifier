@@ -3,6 +3,8 @@ use crate::stark::recursion::ProofTuple;
 use anyhow::{anyhow, Result};
 use plonky2::field::extension::Extendable;
 use plonky2::field::types::{Field, Sample};
+use plonky2::fri::reduction_strategies::FriReductionStrategy;
+use plonky2::fri::FriConfig;
 use plonky2::gates::noop::NoopGate;
 use plonky2::hash::hash_types::RichField;
 use plonky2::hash::{merkle_tree::MerkleTree, poseidon::PoseidonHash};
@@ -44,7 +46,23 @@ fn dummy_proof<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D
 }
 
 pub fn gen_dummy_proof() -> Result<ProofTuple<F, C, D>> {
-    let config = CircuitConfig::standard_recursion_zk_config();
+    let config = CircuitConfig {
+        zero_knowledge: true,
+        num_wires: 135,
+        num_routed_wires: 80,
+        num_constants: 2,
+        use_base_arithmetic_gate: true,
+        security_bits: 100,
+        num_challenges: 2,
+        max_quotient_degree_factor: 8,
+        fri_config: FriConfig {
+            rate_bits: 3,
+            cap_height: 4,
+            proof_of_work_bits: 16,
+            reduction_strategy: FriReductionStrategy::ConstantArityBits(2, 5),
+            num_query_rounds: 28,
+        },
+    };
     let log2_size = 5;
     dummy_proof::<F, C, D>(&config, log2_size)
 }
@@ -95,7 +113,23 @@ pub fn gen_recursive_proof() -> Result<ProofTuple<F, C, D>> {
 }
 
 pub fn gen_test_proof() -> Result<ProofTuple<F, C, D>> {
-    let config = CircuitConfig::standard_recursion_zk_config();
+    let config = CircuitConfig {
+        zero_knowledge: true,
+        num_wires: 135,
+        num_routed_wires: 80,
+        num_constants: 2,
+        use_base_arithmetic_gate: true,
+        security_bits: 100,
+        num_challenges: 2,
+        max_quotient_degree_factor: 8,
+        fri_config: FriConfig {
+            rate_bits: 3,
+            cap_height: 4,
+            proof_of_work_bits: 16,
+            reduction_strategy: FriReductionStrategy::ConstantArityBits(1, 5), // 3, 5
+            num_query_rounds: 1,                                               // 28
+        },
+    };
     let mut builder = CircuitBuilder::<F, D>::new(config);
     // The arithmetic circuit.
     let initial_a = builder.add_virtual_target();
@@ -115,6 +149,7 @@ pub fn gen_test_proof() -> Result<ProofTuple<F, C, D>> {
 
     let data = builder.build::<C>();
     let proof = data.prove(pw)?;
+    data.verify(proof.clone())?;
 
     Ok((proof, data.verifier_only, data.common))
 }

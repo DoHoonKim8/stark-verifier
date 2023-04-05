@@ -53,7 +53,12 @@ impl<F: FieldExt> MerkleProofChip<F> {
         let mut hasher = self.hasher(ctx)?;
         let goldilocks_chip = self.goldilocks_chip();
 
-        let mut state = hasher.hash(ctx, leaf_data.clone(), 4)?;
+        let mut state;
+        if leaf_data.len() <= 4 {
+            state = leaf_data.clone();
+        } else {
+            state = hasher.hash(ctx, leaf_data.clone(), 4)?;
+        }
 
         for (bit, sibling) in leaf_index_bits.iter().zip(proof.siblings.iter()) {
             let mut hasher = self.hasher(ctx)?;

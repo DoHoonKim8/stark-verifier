@@ -41,7 +41,7 @@ impl<F: FieldExt> GoldilocksChip<F> {
         MainGate::new(self.goldilocks_chip_config.main_gate_config.clone())
     }
 
-    fn goldilocks_modulus(&self) -> BigUint {
+    pub fn goldilocks_modulus(&self) -> BigUint {
         BigUint::from_str_radix(&Goldilocks::MODULUS[2..], 16).unwrap()
     }
 
@@ -311,7 +311,7 @@ impl<F: FieldExt> GoldilocksChip<F> {
         main_gate.assign_bit(ctx, bit)
     }
 
-    fn invert(
+    pub fn invert(
         &self,
         ctx: &mut RegionCtx<'_, F>,
         a: &AssignedValue<F>,
@@ -478,6 +478,25 @@ impl<F: FieldExt> GoldilocksChip<F> {
             result = self.mul(ctx, &result, &result)?;
         }
         Ok(result)
+    }
+
+    pub fn exp_from_bits(
+        &self,
+        ctx: &mut RegionCtx<'_, F>,
+        base: Goldilocks,
+        power_bits: &[AssignedValue<F>],
+    ) -> Result<AssignedValue<F>, Error> {
+        let mut x = self.assign_constant(ctx, Goldilocks::one())?;
+        let one = self.assign_constant(ctx, Goldilocks::one())?;
+        for (i, bit) in power_bits.iter().enumerate() {
+            let is_zero_bit = self.is_zero(ctx, bit)?;
+
+            let power = u64::from(1u64 << i).to_le();
+            let base = self.assign_constant(ctx, base.pow(&[power, 0, 0, 0]))?;
+            let multiplicand = self.select(ctx, &one, &base, &is_zero_bit)?;
+            x = self.mul(ctx, &x, &multiplicand)?;
+        }
+        Ok(x)
     }
 
     pub fn is_equal(

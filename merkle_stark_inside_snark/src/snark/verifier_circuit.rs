@@ -1,9 +1,5 @@
 use crate::snark::types::proof::ProofValues;
-use halo2_proofs::{
-    arithmetic::FieldExt,
-    circuit::{floor_planner::V1, *},
-    plonk::*,
-};
+use halo2_proofs::{arithmetic::FieldExt, circuit::*, plonk::*};
 use halo2curves::goldilocks::fp::Goldilocks;
 use halo2wrong::RegionCtx;
 use halo2wrong_maingate::{MainGate, MainGateConfig};
