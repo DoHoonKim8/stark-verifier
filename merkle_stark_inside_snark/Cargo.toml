@@ -2,6 +2,8 @@
 name = "merkle_stark_inside_snark"
 version = "0.1.0"
 edition = "2021"
+authors = ["DoHoonKim8"]
+description = "Halo2 verifier for Plonky2 proof"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -10,10 +12,10 @@ plonky2 = { git = "https://github.com/DoHoonKim8/plonky2" }
 anyhow = "1.0.56"
 lazy_static = "1.4.0"
 halo2curves = { git = "https://github.com/DoHoonKim8/halo2curves.git" }
-halo2_proofs = { git = "https://github.com/privacy-scaling-explorations/halo2.git", features = ["dev-graph"], tag = "v2023_01_17" }
-halo2wrong_transcript = { git = "https://github.com/privacy-scaling-explorations/halo2wrong.git", package = "transcript", tag = "v2023_01_18" }
-halo2wrong_maingate = { git = "https://github.com/privacy-scaling-explorations/halo2wrong.git", package = "maingate", tag = "v2023_01_18" }
-halo2wrong = { git = "https://github.com/privacy-scaling-explorations/halo2wrong.git", package = "halo2wrong", tag = "v2023_01_18" }
+halo2_proofs = { git = "https://github.com/privacy-scaling-explorations/halo2.git", features = ["dev-graph"], tag = "v2023_02_02" }
+halo2wrong_transcript = { git = "https://github.com/privacy-scaling-explorations/halo2wrong.git", package = "transcript", tag = "v2023_02_02" }
+halo2wrong_maingate = { git = "https://github.com/privacy-scaling-explorations/halo2wrong.git", package = "maingate", tag = "v2023_02_02" }
+halo2wrong = { git = "https://github.com/privacy-scaling-explorations/halo2wrong.git", package = "halo2wrong", tag = "v2023_02_02" }
 itertools = "0.10.0"
 poseidon = { git = 'https://github.com/DoHoonKim8/poseidon.git' }
 rand = "0.8"
@@ -21,3 +23,4 @@ subtle = "2.4"
 num-integer = "0.1"
 num-traits = "0.2"
 num-bigint = { version = "0.4", features = ["rand"] }
+snark-verifier = { git = "https://github.com/privacy-scaling-explorations/snark-verifier.git" }
