@@ -301,14 +301,13 @@ mod tests {
             chip::{
                 goldilocks_chip::{GoldilocksChip, GoldilocksChipConfig},
                 goldilocks_extension_chip::GoldilocksExtensionChip,
-                plonk,
             },
             types::{
                 self,
                 assigned::AssignedExtensionFieldValue,
-                common_data::{CommonData, FriParams},
-                proof::{FriProofValues, OpeningSetValues, ProofValues},
-                ExtensionFieldValue, HashValues, MerkleCapValues,
+                common_data::CommonData,
+                proof::{ProofValues},
+                ExtensionFieldValue, HashValues,
             },
         },
         stark::mock,
@@ -475,7 +474,7 @@ mod tests {
 
     #[test]
     fn test_challenge() -> anyhow::Result<()> {
-        let (proof, vd, cd) = mock::gen_dummy_proof()?;
+        let (proof, vd, cd) = mock::gen_test_proof()?;
         let spec = Spec::<Goldilocks, 12, 11>::new(8, 22);
 
         let inner_circuit_digest = HashValues::from(vd.circuit_digest.clone());

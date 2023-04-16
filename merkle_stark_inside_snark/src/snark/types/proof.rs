@@ -26,7 +26,7 @@ use plonky2::{
     hash::poseidon::PoseidonHash,
 };
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct OpeningSetValues<F: FieldExt, const D: usize> {
     pub constants: Vec<ExtensionFieldValue<F, D>>,
     pub plonk_sigmas: Vec<ExtensionFieldValue<F, D>>,
@@ -104,7 +104,7 @@ impl<F: FieldExt, const D: usize> OpeningSetValues<F, D> {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct MerkleProofValues<F: FieldExt> {
     pub siblings: Vec<HashValues<F>>,
 }
@@ -135,7 +135,7 @@ impl<F: FieldExt> From<MerkleProof<GoldilocksField, PoseidonHash>> for MerklePro
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct FriInitialTreeProofValues<F: FieldExt> {
     pub evals_proofs: Vec<(Vec<Goldilocks>, MerkleProofValues<F>)>,
 }
@@ -158,7 +158,7 @@ impl<F: FieldExt> From<FriInitialTreeProof<GoldilocksField, PoseidonHash>>
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct FriQueryStepValues<F: FieldExt, const D: usize> {
     pub evals: Vec<ExtensionFieldValue<F, D>>,
     pub merkle_proof: MerkleProofValues<F>,
@@ -207,7 +207,7 @@ impl<F: FieldExt> From<FriQueryStep<GoldilocksField, PoseidonHash, 2>>
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct FriQueryRoundValues<F: FieldExt, const D: usize> {
     pub initial_trees_proof: FriInitialTreeProofValues<F>,
     pub steps: Vec<FriQueryStepValues<F, D>>,
@@ -273,7 +273,7 @@ impl<F: FieldExt, const D: usize> FriQueryRoundValues<F, D> {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct PolynomialCoeffsExtValues<F: FieldExt, const D: usize>(
     pub Vec<ExtensionFieldValue<F, D>>,
 );
@@ -308,7 +308,7 @@ impl<F: FieldExt, const D: usize> PolynomialCoeffsExtValues<F, D> {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct FriProofValues<F: FieldExt, const D: usize> {
     pub commit_phase_merkle_cap_values: Vec<MerkleCapValues<F>>,
     pub query_round_proofs: Vec<FriQueryRoundValues<F, D>>,
@@ -368,7 +368,7 @@ impl<F: FieldExt, const D: usize> FriProofValues<F, D> {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct ProofValues<F: FieldExt, const D: usize> {
     pub wires_cap: MerkleCapValues<F>,
     pub plonk_zs_partial_products_cap: MerkleCapValues<F>,

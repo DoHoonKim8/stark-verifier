@@ -2,7 +2,7 @@ use crate::snark::types::{HashValues, MerkleCapValues};
 use halo2curves::FieldExt;
 use plonky2::plonk::{circuit_data::VerifierOnlyCircuitData, config::PoseidonGoldilocksConfig};
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct VerificationKeyValues<F: FieldExt> {
     pub constants_sigmas_cap: MerkleCapValues<F>,
     pub circuit_digest: HashValues<F>,

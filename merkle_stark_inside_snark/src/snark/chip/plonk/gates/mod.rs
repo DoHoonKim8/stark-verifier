@@ -89,6 +89,7 @@ pub trait CustomGateConstrainer<F: FieldExt> {
     }
 }
 
+#[derive(Clone)]
 pub struct CustomGateRef<F: FieldExt>(pub Box<dyn CustomGateConstrainer<F>>);
 
 impl<F: FieldExt> From<&GateRef<GoldilocksField, 2>> for CustomGateRef<F> {
@@ -107,5 +108,11 @@ impl<F: FieldExt> From<&GateRef<GoldilocksField, 2>> for CustomGateRef<F> {
                 unimplemented!()
             }
         }
+    }
+}
+
+impl<F: FieldExt> Clone for Box<dyn CustomGateConstrainer<F>> {
+    fn clone(&self) -> Self {
+        Box::clone(&self)
     }
 }

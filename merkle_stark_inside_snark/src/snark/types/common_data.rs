@@ -20,7 +20,7 @@ pub struct FriConfig {
     pub num_query_rounds: usize,
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct CircuitConfig {
     pub num_wires: usize,
     pub num_routed_wires: usize,
@@ -53,7 +53,7 @@ impl FriParams {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct SelectorsInfo {
     pub selector_indices: Vec<usize>,
     pub groups: Vec<Range<usize>>,
@@ -65,7 +65,7 @@ impl SelectorsInfo {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct CommonData<F: FieldExt> {
     pub config: CircuitConfig,
 

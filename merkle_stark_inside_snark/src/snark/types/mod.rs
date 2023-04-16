@@ -25,7 +25,7 @@ pub fn to_goldilocks(e: GoldilocksField) -> Goldilocks {
     Goldilocks::from(e.0)
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct HashValues<F: FieldExt> {
     pub elements: [Goldilocks; 4],
     _marker: PhantomData<F>,
@@ -63,7 +63,7 @@ impl<F: FieldExt> From<HashOut<GoldilocksField>> for HashValues<F> {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct MerkleCapValues<F: FieldExt>(pub Vec<HashValues<F>>);
 
 impl<F: FieldExt> MerkleCapValues<F> {
@@ -89,7 +89,7 @@ impl<F: FieldExt> From<MerkleCap<GoldilocksField, PoseidonHash>> for MerkleCapVa
 }
 
 /// Contains a extension field value
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ExtensionFieldValue<F: FieldExt, const D: usize> {
     pub elements: [Goldilocks; D],
     _marker: PhantomData<F>,

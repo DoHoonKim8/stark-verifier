@@ -1,5 +1,5 @@
 use crate::snark::types::proof::ProofValues;
-use halo2_proofs::{arithmetic::FieldExt, circuit::*, plonk::*};
+use halo2_proofs::{arithmetic::FieldExt, circuit::*, halo2curves::bn256::Fr, plonk::*};
 use halo2curves::goldilocks::fp::Goldilocks;
 use halo2wrong::RegionCtx;
 use halo2wrong_maingate::{MainGate, MainGateConfig};
@@ -27,20 +27,21 @@ impl<F: FieldExt> VerifierConfig<F> {
     }
 }
 
-pub struct Verifier<F: FieldExt> {
-    proof: ProofValues<F, 2>,
+#[derive(Clone)]
+pub struct Verifier {
+    proof: ProofValues<Fr, 2>,
     public_inputs: Vec<Goldilocks>,
-    vk: VerificationKeyValues<F>,
-    common_data: CommonData<F>,
+    vk: VerificationKeyValues<Fr>,
+    common_data: CommonData<Fr>,
     spec: Spec<Goldilocks, 12, 11>,
 }
 
-impl<F: FieldExt> Verifier<F> {
+impl Verifier {
     pub fn new(
-        proof: ProofValues<F, 2>,
+        proof: ProofValues<Fr, 2>,
         public_inputs: Vec<Goldilocks>,
-        vk: VerificationKeyValues<F>,
-        common_data: CommonData<F>,
+        vk: VerificationKeyValues<Fr>,
+        common_data: CommonData<Fr>,
         spec: Spec<Goldilocks, 12, 11>,
     ) -> Self {
         Self {
@@ -53,8 +54,8 @@ impl<F: FieldExt> Verifier<F> {
     }
 }
 
-impl<F: FieldExt> Circuit<F> for Verifier<F> {
-    type Config = VerifierConfig<F>;
+impl Circuit<Fr> for Verifier {
+    type Config = VerifierConfig<Fr>;
     type FloorPlanner = SimpleFloorPlanner;
 
     fn without_witnesses(&self) -> Self {
@@ -67,17 +68,17 @@ impl<F: FieldExt> Circuit<F> for Verifier<F> {
         }
     }
 
-    fn configure(meta: &mut ConstraintSystem<F>) -> Self::Config {
+    fn configure(meta: &mut ConstraintSystem<Fr>) -> Self::Config {
         VerifierConfig::new(meta)
     }
 
     fn synthesize(
         &self,
         config: Self::Config,
-        mut layouter: impl Layouter<F>,
+        mut layouter: impl Layouter<Fr>,
     ) -> Result<(), Error> {
         layouter.assign_region(
-            || "Plonky2 verifier",
+            || "stark_verifier",
             |region| {
                 let offset = 0;
                 let ctx = &mut RegionCtx::new(region, offset);
