@@ -21,12 +21,15 @@ use crate::snark::types::assigned::{AssignedExtensionFieldValue, AssignedHashVal
 const UNUSED_SELECTOR: usize = u32::MAX as usize;
 
 pub mod arithmetic;
+pub mod base_sum;
 pub mod constant;
 pub mod noop;
+pub mod poseidon;
 pub mod public_input;
 
-/// Represents Plonky2's cutom gate. Evaluate gate constraint in `plonk_zeta` inside halo2 circuit.
-pub trait CustomGateConstrainer<F: FieldExt> {
+/// Represents Plonky2's custom gate. Evaluate gate constraint in `plonk_zeta` inside halo2 circuit.
+/// TODO : Add `layout` method to efficiently layout the `local_constants` and `local_wires` values into maingate.
+pub trait CustomGateConstrainer<F: FieldExt> : CustomGateConstrainerClone<F> {
     fn goldilocks_extension_chip(
         &self,
         goldilocks_chip_config: &GoldilocksChipConfig<F>,
@@ -111,8 +114,21 @@ impl<F: FieldExt> From<&GateRef<GoldilocksField, 2>> for CustomGateRef<F> {
     }
 }
 
+pub trait CustomGateConstrainerClone<F: FieldExt> {
+    fn clone_box(&self) -> Box<dyn CustomGateConstrainer<F>>;
+}
+
+impl<T, F: FieldExt> CustomGateConstrainerClone<F> for T
+where
+    T : CustomGateConstrainer<F> + Clone + 'static
+{
+    fn clone_box(&self) -> Box<dyn CustomGateConstrainer<F>> {
+        Box::new(self.clone())
+    }
+}
+
 impl<F: FieldExt> Clone for Box<dyn CustomGateConstrainer<F>> {
     fn clone(&self) -> Self {
-        Box::clone(&self)
+        self.clone_box()
     }
 }
