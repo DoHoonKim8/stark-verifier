@@ -32,6 +32,10 @@ impl<F: FieldExt> GoldilocksExtensionChip<F> {
     fn native_fe_to_goldilocks(&self, fe: F) -> Goldilocks {
         big_to_fe::<Goldilocks>(fe_to_big::<F>(fe))
     }
+
+    fn w() -> Goldilocks {
+        Goldilocks::from(7)
+    }
 }
 
 // Layouts Goldilocks quadratic extension field arithmetic constraints
@@ -45,7 +49,7 @@ impl<F: FieldExt> GoldilocksExtensionChip<F> {
         rhs: &AssignedExtensionFieldValue<F, 2>,
     ) -> Result<AssignedExtensionFieldValue<F, 2>, Error> {
         let goldilocks_chip = self.goldilocks_chip();
-        let w = Goldilocks::from(7);
+        let w = Self::w();
         let mut res = vec![];
         // lhs[0] * rhs[0]
         let l0r0 = goldilocks_chip.mul(ctx, &lhs.0[0], &rhs.0[0])?;

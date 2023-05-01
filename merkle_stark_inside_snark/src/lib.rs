@@ -1,4 +1,7 @@
-use plonky2::plonk::{proof::ProofWithPublicInputs, circuit_data::{VerifierOnlyCircuitData, CommonCircuitData}};
+use plonky2::plonk::{
+    circuit_data::{CommonCircuitData, VerifierOnlyCircuitData},
+    proof::ProofWithPublicInputs,
+};
 
 pub mod plonky2_semaphore;
 pub mod snark;

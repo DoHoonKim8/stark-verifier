@@ -194,6 +194,13 @@ mod tests {
     use super::{verify_inside_snark, EvmVerifier};
 
     #[test]
+    fn test_verify_inside_snark() -> anyhow::Result<()> {
+        let proof = mock::gen_test_proof()?;
+        verify_inside_snark(proof);
+        Ok(())
+    }
+
+    #[test]
     fn test_verify_test_proof() -> anyhow::Result<()> {
         let proof = mock::gen_test_proof()?;
         let (proof_with_public_inputs, vd, cd) = proof;

@@ -9,6 +9,7 @@ use std::marker::PhantomData;
 use super::{
     chip::{goldilocks_chip::GoldilocksChip, plonk::plonk_verifier_chip::PlonkVerifierChip},
     types::{common_data::CommonData, verification_key::VerificationKeyValues},
+    R_F, R_P, T, T_MINUS_ONE,
 };
 
 #[derive(Clone)]
@@ -33,7 +34,7 @@ pub struct Verifier {
     public_inputs: Vec<Goldilocks>,
     vk: VerificationKeyValues<Fr>,
     common_data: CommonData<Fr>,
-    spec: Spec<Goldilocks, 12, 11>,
+    spec: Spec<Goldilocks, T, T_MINUS_ONE>,
 }
 
 impl Verifier {
@@ -42,7 +43,7 @@ impl Verifier {
         public_inputs: Vec<Goldilocks>,
         vk: VerificationKeyValues<Fr>,
         common_data: CommonData<Fr>,
-        spec: Spec<Goldilocks, 12, 11>,
+        spec: Spec<Goldilocks, T, T_MINUS_ONE>,
     ) -> Self {
         Self {
             proof,
@@ -64,7 +65,7 @@ impl Circuit<Fr> for Verifier {
             public_inputs: vec![],
             vk: VerificationKeyValues::default(),
             common_data: CommonData::default(),
-            spec: Spec::new(8, 22),
+            spec: Spec::new(R_F, R_P),
         }
     }
 

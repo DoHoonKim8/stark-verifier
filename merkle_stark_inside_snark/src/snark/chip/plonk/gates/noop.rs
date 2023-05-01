@@ -9,6 +9,7 @@ use crate::snark::{
 
 use super::CustomGateConstrainer;
 
+#[derive(Clone)]
 pub struct NoopGateConstrainer;
 
 impl<F: FieldExt> CustomGateConstrainer<F> for NoopGateConstrainer {

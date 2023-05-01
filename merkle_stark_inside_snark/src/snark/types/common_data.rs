@@ -4,6 +4,7 @@ use crate::snark::{chip::plonk::gates::CustomGateRef, types::fri::FriOracleInfo}
 
 use super::{fri::FriPolynomialInfo, to_goldilocks};
 use halo2curves::{goldilocks::fp::Goldilocks, FieldExt};
+use itertools::Itertools;
 use plonky2::{field::goldilocks_field::GoldilocksField, plonk::circuit_data::CommonCircuitData};
 
 #[derive(Clone, Debug, Default)]
@@ -223,6 +224,11 @@ impl<F: FieldExt> CommonData<F> {
 
 impl<F: FieldExt> From<CommonCircuitData<GoldilocksField, 2>> for CommonData<F> {
     fn from(value: CommonCircuitData<GoldilocksField, 2>) -> Self {
+        value
+            .gates
+            .iter()
+            .map(|gate| println!("{}", gate.0.id()))
+            .collect_vec();
         Self {
             config: CircuitConfig {
                 num_wires: value.config.num_wires,

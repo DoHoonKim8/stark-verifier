@@ -143,12 +143,12 @@ impl<F: FieldExt, const T: usize, const T_MINUS_ONE: usize, const RATE: usize>
         ctx: &mut RegionCtx<'_, F>,
         constants: &[Goldilocks; T],
     ) -> Result<(), Error> {
-        let main_gate = self.goldilocks_chip();
+        let goldilocks_chip = self.goldilocks_chip();
         for (word, constant) in self.state.0.iter_mut().zip(constants.iter()) {
-            let word2 = main_gate.mul(ctx, word, word)?;
-            let word4 = main_gate.mul(ctx, &word2, &word2)?;
-            let word6 = main_gate.mul(ctx, &word2, &word4)?;
-            *word = main_gate.mul_add_constant(ctx, &word6, word, *constant)?;
+            let word2 = goldilocks_chip.mul(ctx, word, word)?;
+            let word4 = goldilocks_chip.mul(ctx, &word2, &word2)?;
+            let word6 = goldilocks_chip.mul(ctx, &word2, &word4)?;
+            *word = goldilocks_chip.mul_add_constant(ctx, &word6, word, *constant)?;
         }
         Ok(())
     }

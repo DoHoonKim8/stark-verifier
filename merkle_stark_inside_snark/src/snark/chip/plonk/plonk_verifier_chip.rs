@@ -17,6 +17,7 @@ use crate::snark::{
         verification_key::VerificationKeyValues,
         HashValues, MerkleCapValues,
     },
+    RATE, T, T_MINUS_ONE,
 };
 use halo2_proofs::plonk::*;
 use halo2curves::{goldilocks::fp::Goldilocks, group::ff::PrimeField, FieldExt};
@@ -75,8 +76,11 @@ impl<F: FieldExt> PlonkVerifierChip<F> {
         public_inputs: &Vec<AssignedValue<F>>,
         spec: &Spec<Goldilocks, 12, 11>,
     ) -> Result<AssignedHashValues<F>, Error> {
-        let mut transcript_chip =
-            TranscriptChip::<F, 12, 11, 8>::new(ctx, &spec, &self.goldilocks_chip_config)?;
+        let mut transcript_chip = TranscriptChip::<F, T, T_MINUS_ONE, RATE>::new(
+            ctx,
+            &spec,
+            &self.goldilocks_chip_config,
+        )?;
         let outputs = transcript_chip.hash(ctx, public_inputs.clone(), 4)?;
         Ok(AssignedHashValues {
             elements: outputs.try_into().unwrap(),
@@ -303,11 +307,8 @@ mod tests {
                 goldilocks_extension_chip::GoldilocksExtensionChip,
             },
             types::{
-                self,
-                assigned::AssignedExtensionFieldValue,
-                common_data::CommonData,
-                proof::{ProofValues},
-                ExtensionFieldValue, HashValues,
+                self, assigned::AssignedExtensionFieldValue, common_data::CommonData,
+                proof::ProofValues, ExtensionFieldValue, HashValues,
             },
         },
         stark::mock,

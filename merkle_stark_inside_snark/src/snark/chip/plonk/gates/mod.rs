@@ -5,9 +5,10 @@ use halo2_proofs::plonk::Error;
 use halo2curves::goldilocks::fp::Goldilocks;
 use halo2curves::FieldExt;
 use halo2wrong::RegionCtx;
-use halo2wrong_maingate::MainGateConfig;
 use plonky2::{field::goldilocks_field::GoldilocksField, gates::gate::GateRef};
 
+use self::base_sum::BaseSumGateConstrainer;
+use self::poseidon::PoseidonGateConstrainer;
 use self::{
     arithmetic::ArithmeticGateConstrainer, constant::ConstantGateConstrainer,
     noop::NoopGateConstrainer, public_input::PublicInputGateConstrainer,
@@ -28,8 +29,7 @@ pub mod poseidon;
 pub mod public_input;
 
 /// Represents Plonky2's custom gate. Evaluate gate constraint in `plonk_zeta` inside halo2 circuit.
-/// TODO : Add `layout` method to efficiently layout the `local_constants` and `local_wires` values into maingate.
-pub trait CustomGateConstrainer<F: FieldExt> : CustomGateConstrainerClone<F> {
+pub trait CustomGateConstrainer<F: FieldExt>: CustomGateConstrainerClone<F> {
     fn goldilocks_extension_chip(
         &self,
         goldilocks_chip_config: &GoldilocksChipConfig<F>,
@@ -106,6 +106,12 @@ impl<F: FieldExt> From<&GateRef<GoldilocksField, 2>> for CustomGateRef<F> {
             "ConstantGate { num_consts: 2 }" => Self(Box::new(ConstantGateConstrainer {
                 num_consts: value.0.num_constants(),
             })),
+            "BaseSumGate { num_limbs: 63 } + Base: 2" => {
+                Self(Box::new(BaseSumGateConstrainer { num_limbs: 63 }))
+            },
+            "PoseidonGate(PhantomData<plonky2_field::goldilocks_field::GoldilocksField>)<WIDTH=12>" => {
+                Self(Box::new(PoseidonGateConstrainer))
+            },
             s => {
                 println!("{s}");
                 unimplemented!()
@@ -114,13 +120,14 @@ impl<F: FieldExt> From<&GateRef<GoldilocksField, 2>> for CustomGateRef<F> {
     }
 }
 
+/// This trait is for cloning the boxed trait object.
 pub trait CustomGateConstrainerClone<F: FieldExt> {
     fn clone_box(&self) -> Box<dyn CustomGateConstrainer<F>>;
 }
 
 impl<T, F: FieldExt> CustomGateConstrainerClone<F> for T
 where
-    T : CustomGateConstrainer<F> + Clone + 'static
+    T: CustomGateConstrainer<F> + Clone + 'static,
 {
     fn clone_box(&self) -> Box<dyn CustomGateConstrainer<F>> {
         Box::new(self.clone())
