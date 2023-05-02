@@ -1,1 +1,1 @@
-# stark_verifier
+# stark-verifier
