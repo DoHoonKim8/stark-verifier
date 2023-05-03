@@ -69,9 +69,9 @@ checksum = "8da52d66c7071e2e3fa2a1e5c6d088fec47b593032b254f5e980de8ea54454d6"
 
 [[package]]
 name = "auto_impl"
-version = "1.0.1"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a8c1df849285fbacd587de7818cc7d13be6cd2cbcd47a04fb1801b0e2706e33"
+checksum = "fee3da8ef1276b0bee5dd1c7258010d8fffd31801447323115a25560e1327b89"
 dependencies = [
  "proc-macro-error",
  "proc-macro2",
@@ -1058,7 +1058,7 @@ dependencies = [
 [[package]]
 name = "maybe_rayon"
 version = "0.1.0"
-source = "git+https://github.com/DoHoonKim8/plonky2#da33a90c32736a4f2f89b9ac807b4b6607371c99"
+source = "git+https://github.com/DoHoonKim8/plonky2#0a734dd0c6434734c599248d227f41998fcd3829"
 dependencies = [
  "rayon",
 ]
@@ -1316,7 +1316,7 @@ checksum = "6ac9a59f73473f1b8d852421e59e64809f025994837ef743615c6d0c5b305160"
 [[package]]
 name = "plonky2"
 version = "0.1.0"
-source = "git+https://github.com/DoHoonKim8/plonky2#da33a90c32736a4f2f89b9ac807b4b6607371c99"
+source = "git+https://github.com/DoHoonKim8/plonky2#0a734dd0c6434734c599248d227f41998fcd3829"
 dependencies = [
  "ahash 0.7.6",
  "anyhow",
@@ -1338,7 +1338,7 @@ dependencies = [
 [[package]]
 name = "plonky2_field"
 version = "0.1.0"
-source = "git+https://github.com/DoHoonKim8/plonky2#da33a90c32736a4f2f89b9ac807b4b6607371c99"
+source = "git+https://github.com/DoHoonKim8/plonky2#0a734dd0c6434734c599248d227f41998fcd3829"
 dependencies = [
  "anyhow",
  "itertools",
@@ -1353,7 +1353,7 @@ dependencies = [
 [[package]]
 name = "plonky2_util"
 version = "0.1.0"
-source = "git+https://github.com/DoHoonKim8/plonky2#da33a90c32736a4f2f89b9ac807b4b6607371c99"
+source = "git+https://github.com/DoHoonKim8/plonky2#0a734dd0c6434734c599248d227f41998fcd3829"
 
 [[package]]
 name = "plotters"
@@ -2257,9 +2257,9 @@ checksum = "1a515f5799fe4961cb532f983ce2b23082366b898e52ffbce459c86f67c8378a"
 
 [[package]]
 name = "winnow"
-version = "0.4.4"
+version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5617da7e1f97bf363947d767b91aaf3c2bbc19db7fda9c65af1278713d58e0a2"
+checksum = "69af645a61644c6dd379ade8b77cc87efb5393c988707bad12d3c8e00c50f669"
 dependencies = [
  "memchr",
 ]
