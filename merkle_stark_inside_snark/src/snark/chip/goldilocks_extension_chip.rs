@@ -184,6 +184,18 @@ impl<F: FieldExt> GoldilocksExtensionChip<F> {
         Ok(AssignedExtensionFieldValue(elements))
     }
 
+    pub fn two_extension(
+        &self,
+        ctx: &mut RegionCtx<'_, F>,
+    ) -> Result<AssignedExtensionFieldValue<F, 2>, Error> {
+        let goldilocks_chip = self.goldilocks_chip();
+        let elements = [
+            goldilocks_chip.assign_constant(ctx, Goldilocks::from(2))?,
+            goldilocks_chip.assign_constant(ctx, Goldilocks::zero())?,
+        ];
+        Ok(AssignedExtensionFieldValue(elements))
+    }
+
     pub fn mul_extension_with_const(
         &self,
         ctx: &mut RegionCtx<'_, F>,
@@ -389,5 +401,22 @@ impl<F: FieldExt> GoldilocksExtensionChip<F> {
         goldilocks_chip.assert_one(ctx, &a.0[0])?;
         goldilocks_chip.assert_zero(ctx, &a.0[1])?;
         Ok(())
+    }
+
+    pub fn select(
+        &self,
+        ctx: &mut RegionCtx<'_, F>,
+        cond: &AssignedExtensionFieldValue<F, 2>,
+        a: &AssignedExtensionFieldValue<F, 2>,
+        b: &AssignedExtensionFieldValue<F, 2>,
+    ) -> Result<AssignedExtensionFieldValue<F, 2>, Error> {
+        let zero_extension = self.zero_extension(ctx)?;
+        let c = self.mul_sub_extension(ctx, cond, cond, cond)?;
+        self.assert_equal_extension(ctx, &c, &zero_extension)?;
+
+        // cond * (a - b) + b
+        let a_minus_b = self.sub_extension(ctx, a, b)?;
+        let one = Goldilocks::one();
+        self.arithmetic_extension(ctx, one, one, cond, &a_minus_b, b)
     }
 }

@@ -309,8 +309,8 @@ const FAST_PARTIAL_ROUND_VS: [[u64; T - 1]; R_P] = [
          0xdcedab70f40718ba, 0xe796d293a47a64cb, 0x80772dc2645b280b, ],
     ];
 
-const MDS_MATRIX_CIRC: [u64; T] = [17, 15, 41, 16, 2, 28, 13, 13, 39, 18, 34, 20];
-const MDS_MATRIX_DIAG: [u64; T] = [8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+pub const MDS_MATRIX_CIRC: [u64; T] = [17, 15, 41, 16, 2, 28, 13, 13, 39, 18, 34, 20];
+pub const MDS_MATRIX_DIAG: [u64; T] = [8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
 #[derive(Clone, Debug, Default)]
 pub struct PoseidonGateConstrainer;

@@ -8,7 +8,12 @@ use halo2wrong::RegionCtx;
 use plonky2::{field::goldilocks_field::GoldilocksField, gates::gate::GateRef};
 
 use self::base_sum::BaseSumGateConstrainer;
+use self::multiplication_extension::MulExtensionGateConstrainer;
 use self::poseidon::PoseidonGateConstrainer;
+use self::poseidon_mds::PoseidonMDSGateConstrainer;
+use self::random_access::RandomAccessGateConstrainer;
+use self::reducing::ReducingGateConstrainer;
+use self::reducing_extension::ReducingExtensionGateConstrainer;
 use self::{
     arithmetic::ArithmeticGateConstrainer, constant::ConstantGateConstrainer,
     noop::NoopGateConstrainer, public_input::PublicInputGateConstrainer,
@@ -22,11 +27,17 @@ use crate::snark::types::assigned::{AssignedExtensionFieldValue, AssignedHashVal
 const UNUSED_SELECTOR: usize = u32::MAX as usize;
 
 pub mod arithmetic;
+pub mod arithmetic_extension;
 pub mod base_sum;
 pub mod constant;
+pub mod multiplication_extension;
 pub mod noop;
 pub mod poseidon;
+pub mod poseidon_mds;
 pub mod public_input;
+pub mod random_access;
+pub mod reducing;
+pub mod reducing_extension;
 
 /// Represents Plonky2's custom gate. Evaluate gate constraint in `plonk_zeta` inside halo2 circuit.
 pub trait CustomGateConstrainer<F: FieldExt>: CustomGateConstrainerClone<F> {
@@ -111,6 +122,43 @@ impl<F: FieldExt> From<&GateRef<GoldilocksField, 2>> for CustomGateRef<F> {
             },
             "PoseidonGate(PhantomData<plonky2_field::goldilocks_field::GoldilocksField>)<WIDTH=12>" => {
                 Self(Box::new(PoseidonGateConstrainer))
+            },
+            "PoseidonMdsGate(PhantomData<plonky2_field::goldilocks_field::GoldilocksField>)<WIDTH=12>" => {
+                Self(Box::new(PoseidonMDSGateConstrainer))
+            },
+            "RandomAccessGate { bits: 1, num_copies: 20, num_extra_constants: 0, _phantom: PhantomData<plonky2_field::goldilocks_field::GoldilocksField> }<D=2>" => {
+                Self(Box::new(RandomAccessGateConstrainer {
+                    bits: 1,
+                    num_copies: 20,
+                    num_extra_constants: 0,
+                }))
+            },
+            "RandomAccessGate { bits: 4, num_copies: 4, num_extra_constants: 2, _phantom: PhantomData<plonky2_field::goldilocks_field::GoldilocksField> }<D=2>" => {
+                Self(Box::new(RandomAccessGateConstrainer {
+                    bits: 4,
+                    num_copies: 4,
+                    num_extra_constants: 2,
+                }))
+            },
+            "ReducingExtensionGate { num_coeffs: 32 }" => {
+                Self(Box::new(ReducingExtensionGateConstrainer {
+                    num_coeffs: 32,
+                }))
+            },
+            "ReducingGate { num_coeffs: 43 }" => {
+                Self(Box::new(ReducingGateConstrainer {
+                    num_coeffs: 43,
+                }))
+            },
+            "ArithmeticExtensionGate { num_ops: 10 }" => {
+                Self(Box::new(ArithmeticGateConstrainer {
+                    num_ops: 10
+                }))
+            },
+            "MulExtensionGate { num_ops: 13 }" => {
+                Self(Box::new(MulExtensionGateConstrainer {
+                    num_ops: 13
+                }))
             },
             s => {
                 println!("{s}");

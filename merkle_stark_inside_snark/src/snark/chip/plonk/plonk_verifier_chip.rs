@@ -1,10 +1,10 @@
 use crate::snark::{
-    chip::goldilocks_extension_chip::GoldilocksExtensionChip,
     chip::{
         fri_chip::FriVerifierChip,
         goldilocks_chip::{GoldilocksChip, GoldilocksChipConfig},
         transcript_chip::TranscriptChip,
     },
+    chip::{goldilocks_extension_chip::GoldilocksExtensionChip, hasher_chip::HasherChip},
     types::{
         assigned::{
             AssignedExtensionFieldValue, AssignedFriChallenges, AssignedFriProofValues,
@@ -76,12 +76,9 @@ impl<F: FieldExt> PlonkVerifierChip<F> {
         public_inputs: &Vec<AssignedValue<F>>,
         spec: &Spec<Goldilocks, 12, 11>,
     ) -> Result<AssignedHashValues<F>, Error> {
-        let mut transcript_chip = TranscriptChip::<F, T, T_MINUS_ONE, RATE>::new(
-            ctx,
-            &spec,
-            &self.goldilocks_chip_config,
-        )?;
-        let outputs = transcript_chip.hash(ctx, public_inputs.clone(), 4)?;
+        let mut hasher_chip =
+            HasherChip::<F, T, T_MINUS_ONE, RATE>::new(ctx, &spec, &self.goldilocks_chip_config)?;
+        let outputs = hasher_chip.hash(ctx, public_inputs.clone(), 4)?;
         Ok(AssignedHashValues {
             elements: outputs.try_into().unwrap(),
         })
