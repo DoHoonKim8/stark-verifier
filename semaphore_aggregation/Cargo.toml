@@ -1,9 +1,9 @@
 [package]
-name = "merkle_stark_inside_snark"
+name = "semaphore_aggregation"
 version = "0.1.0"
 edition = "2021"
 authors = ["DoHoonKim8"]
-description = "Halo2 verifier for Plonky2 proof"
+description = "Halo2 verifier for aggregated Plonky2 Semaphore proof"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
