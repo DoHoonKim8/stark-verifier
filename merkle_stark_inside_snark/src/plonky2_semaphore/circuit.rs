@@ -1,5 +1,5 @@
 use plonky2::field::types::Field;
-use plonky2::hash::hash_types::{HashOutTarget, MerkleCapTarget};
+use plonky2::hash::hash_types::{HashOutTarget};
 use plonky2::hash::merkle_proofs::MerkleProofTarget;
 use plonky2::hash::poseidon::PoseidonHash;
 use plonky2::iop::target::Target;
@@ -77,7 +77,7 @@ impl AccessSet {
             topic: topic_target,
             merkle_proof: merkle_proof_target,
             private_key: private_key_target,
-            public_key_index: public_key_index_target,
+            public_key_index: public_key_index_target
         } = targets;
 
         pw.set_hash_target(merkle_root, self.0.cap.0[0]);

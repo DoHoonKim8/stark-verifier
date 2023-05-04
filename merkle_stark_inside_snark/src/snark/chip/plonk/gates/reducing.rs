@@ -4,7 +4,10 @@ use halo2_proofs::plonk::Error;
 use halo2curves::FieldExt;
 use halo2wrong::RegionCtx;
 
-use crate::snark::{chip::goldilocks_chip::GoldilocksChipConfig, types::assigned::{AssignedExtensionFieldValue, AssignedHashValues}};
+use crate::snark::{
+    chip::goldilocks_chip::GoldilocksChipConfig,
+    types::assigned::{AssignedExtensionFieldValue, AssignedHashValues},
+};
 
 use super::CustomGateConstrainer;
 
@@ -15,14 +18,6 @@ pub struct ReducingGateConstrainer {
 }
 
 impl ReducingGateConstrainer {
-    pub fn new(num_coeffs: usize) -> Self {
-        Self { num_coeffs }
-    }
-
-    pub fn max_coeffs_len(num_wires: usize, num_routed_wires: usize) -> usize {
-        (num_routed_wires - 3 * 2).min((num_wires - 2 * 2) / (2 + 1))
-    }
-
     pub fn wires_output() -> Range<usize> {
         0..2
     }
@@ -61,27 +56,33 @@ impl<F: FieldExt> CustomGateConstrainer<F> for ReducingGateConstrainer {
         local_wires: &[AssignedExtensionFieldValue<F, 2>],
         public_inputs_hash: &AssignedHashValues<F>,
     ) -> Result<Vec<AssignedExtensionFieldValue<F, 2>>, Error> {
-        let goldilocks_extension_chip = self.goldilocks_extension_chip(goldilocks_chip_config);
-        let alpha = local_wires[Self::wires_alpha()][0].clone();
-        let old_acc = local_wires[Self::wires_old_acc()][0].clone();
+        let goldilocks_extension_algebra_chip =
+            self.goldilocks_extension_algebra_chip(goldilocks_chip_config);
+        let alpha = self.get_local_ext_algebra(local_wires, Self::wires_alpha());
+        let old_acc = self.get_local_ext_algebra(local_wires, Self::wires_old_acc());
         let coeffs = self
             .wires_coeffs()
             .map(|i| local_wires[i].clone())
             .collect::<Vec<_>>();
         let accs = (0..self.num_coeffs)
-            .map(|i| local_wires[self.wires_accs(i)][0].clone())
+            .map(|i| self.get_local_ext_algebra(local_wires, self.wires_accs(i)))
             .collect::<Vec<_>>();
 
         let mut constraints = Vec::with_capacity(self.num_constraints());
         let mut acc = old_acc;
         for i in 0..self.num_coeffs {
-            let coeff = coeffs[i].clone();
-            let mut tmp = goldilocks_extension_chip.mul_add_extension(ctx, &acc, &alpha, &coeff)?;
-            tmp = goldilocks_extension_chip.sub_extension(ctx, &tmp, &accs[i])?;
+            let coeff =
+                goldilocks_extension_algebra_chip.convert_to_ext_algebra(ctx, &coeffs[i])?;
+            let mut tmp =
+                goldilocks_extension_algebra_chip.mul_add_ext_algebra(ctx, &acc, &alpha, &coeff)?;
+            tmp = goldilocks_extension_algebra_chip.sub_ext_algebra(ctx, &tmp, &accs[i])?;
             constraints.push(tmp);
             acc = accs[i].clone();
         }
 
-        Ok(constraints)
+        Ok(constraints
+            .into_iter()
+            .flat_map(|alg| alg.to_ext_array())
+            .collect())
     }
 }

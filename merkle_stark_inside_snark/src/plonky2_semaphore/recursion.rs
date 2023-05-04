@@ -7,7 +7,7 @@ use plonky2::plonk::config::PoseidonGoldilocksConfig;
 use plonky2::plonk::proof::ProofWithPublicInputs;
 
 use super::access_set::AccessSet;
-use super::signal::{Digest, PlonkyProof, Signal, C, F};
+use super::signal::{Digest, Signal, C, F};
 
 type InnerC = PoseidonGoldilocksConfig;
 
@@ -39,7 +39,7 @@ impl AccessSet {
                 cap_height: 4,
                 proof_of_work_bits: 16,
                 reduction_strategy: FriReductionStrategy::ConstantArityBits(1, 5), // 3, 5
-                num_query_rounds: 1,                                               // 28
+                num_query_rounds: 28,                                              // 28
             },
         };
         let mut builder = CircuitBuilder::new(config);
@@ -72,14 +72,14 @@ impl AccessSet {
                 public_inputs: public_inputs0,
             },
         );
-        // let proof_target1 = builder.add_virtual_proof_with_pis::<InnerC>(&verifier_data.common);
-        // pw.set_proof_with_pis_target(
-        //     &proof_target1,
-        //     &ProofWithPublicInputs {
-        //         proof: signal1.proof,
-        //         public_inputs: public_inputs1,
-        //     },
-        // );
+        let proof_target1 = builder.add_virtual_proof_with_pis::<InnerC>(&verifier_data.common);
+        pw.set_proof_with_pis_target(
+            &proof_target1,
+            &ProofWithPublicInputs {
+                proof: signal1.proof,
+                public_inputs: public_inputs1,
+            },
+        );
 
         let vd_target = VerifierCircuitTarget {
             constants_sigmas_cap: builder
@@ -96,7 +96,7 @@ impl AccessSet {
         );
 
         builder.verify_proof::<InnerC>(&proof_target0, &vd_target, &verifier_data.common);
-        // builder.verify_proof::<InnerC>(&proof_target1, &vd_target, &verifier_data.common);
+        builder.verify_proof::<InnerC>(&proof_target1, &vd_target, &verifier_data.common);
 
         let data = builder.build();
         let recursive_proof = data.prove(pw).unwrap();
@@ -125,7 +125,7 @@ mod tests {
             access_set::AccessSet,
             signal::{Digest, F},
         },
-        snark::verifier_api::verify_inside_snark,
+        snark::verifier_api::{verify_inside_snark, verify_inside_snark_mock},
     };
 
     #[test]
@@ -152,7 +152,7 @@ mod tests {
 
         let (_, _, proof, aggregation_circuit_vd) =
             access_set.aggregate_signals(topic0, signal0, topic1, signal1, &vd);
-        verify_inside_snark((
+        verify_inside_snark_mock((
             proof,
             aggregation_circuit_vd.verifier_only.clone(),
             aggregation_circuit_vd.common.clone(),

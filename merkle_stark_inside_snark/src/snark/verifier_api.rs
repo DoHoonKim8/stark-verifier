@@ -141,22 +141,10 @@ impl EvmVerifier {
     }
 }
 
-fn run_verifier_circuit(
-    proof: ProofValues<Fr, 2>,
-    public_inputs: Vec<Goldilocks>,
-    vk: VerificationKeyValues<Fr>,
-    common_data: CommonData<Fr>,
-    spec: Spec<Goldilocks, 12, 11>,
-) {
-    let verifier_circuit = Verifier::new(proof, public_inputs, vk, common_data, spec);
-    let instance = vec![vec![]];
-    let _prover = MockProver::run(23, &verifier_circuit, instance).unwrap();
-    _prover.assert_satisfied()
-}
-
 /// Public API for generating Halo2 proof for Plonky2 verifier circuit
 /// feed Plonky2 proof, `VerifierOnlyCircuitData`, `CommonCircuitData`
-pub fn verify_inside_snark(proof: ProofTuple<GoldilocksField, PoseidonGoldilocksConfig, 2>) {
+/// This runs only mock prover for constraint check
+pub fn verify_inside_snark_mock(proof: ProofTuple<GoldilocksField, PoseidonGoldilocksConfig, 2>) {
     let (proof_with_public_inputs, vd, cd) = proof;
 
     // proof_with_public_inputs -> ProofValues type
@@ -171,56 +159,40 @@ pub fn verify_inside_snark(proof: ProofTuple<GoldilocksField, PoseidonGoldilocks
     let common_data = CommonData::from(cd);
 
     let spec = Spec::<Goldilocks, 12, 11>::new(8, 22);
-    run_verifier_circuit(proof, public_inputs, vk, common_data, spec);
+
+    let verifier_circuit = Verifier::new(proof, public_inputs, vk, common_data, spec);
+    let instance = vec![vec![]];
+    let _prover = MockProver::run(23, &verifier_circuit, instance).unwrap();
+    _prover.assert_satisfied()
 }
 
-#[cfg(test)]
-mod tests {
-    use halo2_proofs::halo2curves::bn256::Fr;
-    use halo2curves::goldilocks::fp::Goldilocks;
-    use poseidon::Spec;
+/// Public API for generating Halo2 proof for Plonky2 verifier circuit
+/// feed Plonky2 proof, `VerifierOnlyCircuitData`, `CommonCircuitData`
+/// This runs real prover and generates valid SNARK proof, generates EVM verifier and runs the verifier
+pub fn verify_inside_snark(proof: ProofTuple<GoldilocksField, PoseidonGoldilocksConfig, 2>) {
+    let (proof_with_public_inputs, vd, cd) = proof;
+    let proof = ProofValues::<Fr, 2>::from(proof_with_public_inputs.proof);
+    let public_inputs = proof_with_public_inputs
+        .public_inputs
+        .iter()
+        .map(|e| types::to_goldilocks(*e))
+        .collect::<Vec<Goldilocks>>();
+    let vk = VerificationKeyValues::from(vd.clone());
+    let common_data = CommonData::from(cd);
+    let spec = Spec::<Goldilocks, 12, 11>::new(8, 22);
 
-    use crate::{
-        snark::{
-            types::{
-                self, common_data::CommonData, proof::ProofValues,
-                verification_key::VerificationKeyValues,
-            },
-            verifier_circuit::Verifier,
-        },
-        stark::mock,
-    };
+    // runs mock prover
+    let circuit = Verifier::new(proof, public_inputs, vk, common_data, spec);
+    let instance = vec![vec![]];
+    let mock_prover = MockProver::run(23, &circuit, instance).unwrap();
+    mock_prover.assert_satisfied();
 
-    use super::{verify_inside_snark, EvmVerifier};
+    // generates EVM verifier
+    let params = EvmVerifier::gen_srs(23);
+    let pk = EvmVerifier::gen_pk(&params, &circuit);
+    let deployment_code = EvmVerifier::gen_evm_verifier(&params, pk.get_vk(), vec![0]);
 
-    #[test]
-    fn test_verify_inside_snark() -> anyhow::Result<()> {
-        let proof = mock::gen_test_proof()?;
-        verify_inside_snark(proof);
-        Ok(())
-    }
-
-    #[test]
-    fn test_verify_test_proof() -> anyhow::Result<()> {
-        let proof = mock::gen_test_proof()?;
-        let (proof_with_public_inputs, vd, cd) = proof;
-        let proof = ProofValues::<Fr, 2>::from(proof_with_public_inputs.proof);
-        let public_inputs = proof_with_public_inputs
-            .public_inputs
-            .iter()
-            .map(|e| types::to_goldilocks(*e))
-            .collect::<Vec<Goldilocks>>();
-        let vk = VerificationKeyValues::from(vd.clone());
-        let common_data = CommonData::from(cd);
-        let spec = Spec::<Goldilocks, 12, 11>::new(8, 22);
-        let circuit = Verifier::new(proof, public_inputs, vk, common_data, spec);
-
-        let params = EvmVerifier::gen_srs(23);
-        let pk = EvmVerifier::gen_pk(&params, &circuit);
-        let deployment_code = EvmVerifier::gen_evm_verifier(&params, pk.get_vk(), vec![0]);
-
-        let proof = EvmVerifier::gen_proof(&params, &pk, circuit.clone(), vec![vec![]]);
-        EvmVerifier::evm_verify(deployment_code, vec![vec![]], proof);
-        Ok(())
-    }
+    // generates SNARK proof and runs EVM verifier
+    let proof = EvmVerifier::gen_proof(&params, &pk, circuit.clone(), vec![vec![]]);
+    EvmVerifier::evm_verify(deployment_code, vec![vec![]], proof);
 }

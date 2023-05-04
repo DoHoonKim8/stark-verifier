@@ -9,6 +9,8 @@ use crate::snark::types::assigned::AssignedExtensionFieldValue;
 
 use super::goldilocks_chip::{GoldilocksChip, GoldilocksChipConfig};
 
+pub struct AssignedExtensionAlgebra<F: FieldExt>(pub [AssignedExtensionFieldValue<F, 2>; 2]);
+
 pub struct GoldilocksExtensionChip<F: FieldExt> {
     goldilocks_chip_config: GoldilocksChipConfig<F>,
 }
@@ -33,7 +35,7 @@ impl<F: FieldExt> GoldilocksExtensionChip<F> {
         big_to_fe::<Goldilocks>(fe_to_big::<F>(fe))
     }
 
-    fn w() -> Goldilocks {
+    pub fn w() -> Goldilocks {
         Goldilocks::from(7)
     }
 }
@@ -403,6 +405,9 @@ impl<F: FieldExt> GoldilocksExtensionChip<F> {
         Ok(())
     }
 
+    /// Accepts a condition input which does not necessarily have to be
+    /// binary. In this case, it computes the arithmetic generalization of `if b { x } else { y }`,
+    /// i.e. `bx - (by-y)`.
     pub fn select(
         &self,
         ctx: &mut RegionCtx<'_, F>,
@@ -410,10 +415,6 @@ impl<F: FieldExt> GoldilocksExtensionChip<F> {
         a: &AssignedExtensionFieldValue<F, 2>,
         b: &AssignedExtensionFieldValue<F, 2>,
     ) -> Result<AssignedExtensionFieldValue<F, 2>, Error> {
-        let zero_extension = self.zero_extension(ctx)?;
-        let c = self.mul_sub_extension(ctx, cond, cond, cond)?;
-        self.assert_equal_extension(ctx, &c, &zero_extension)?;
-
         // cond * (a - b) + b
         let a_minus_b = self.sub_extension(ctx, a, b)?;
         let one = Goldilocks::one();

@@ -9,7 +9,7 @@ use plonky2::plonk::circuit_data::{CircuitConfig, VerifierCircuitData};
 use plonky2::plonk::config::Hasher;
 use plonky2::plonk::proof::ProofWithPublicInputs;
 
-use crate::snark::verifier_api::verify_inside_snark;
+use crate::snark::verifier_api::{verify_inside_snark, verify_inside_snark_mock};
 
 use super::signal::{Digest, Signal, C, F};
 
@@ -44,7 +44,7 @@ impl AccessSet {
             verifier_data.verifier_only.clone(),
             verifier_data.common.clone(),
         );
-        verify_inside_snark(proof);
+        verify_inside_snark_mock(proof);
         Ok(())
     }
 
@@ -69,7 +69,7 @@ impl AccessSet {
                 cap_height: 4,
                 proof_of_work_bits: 16,
                 reduction_strategy: FriReductionStrategy::ConstantArityBits(1, 5), // 3, 5
-                num_query_rounds: 28,                                               // 28
+                num_query_rounds: 28,                                              // 28
             },
         };
         let mut builder = CircuitBuilder::new(config);

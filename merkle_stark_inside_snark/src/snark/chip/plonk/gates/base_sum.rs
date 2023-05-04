@@ -36,8 +36,7 @@ impl<F: FieldExt> CustomGateConstrainer<F> for BaseSumGateConstrainer {
         public_inputs_hash: &AssignedHashValues<F>,
     ) -> Result<Vec<AssignedExtensionFieldValue<F, 2>>, halo2_proofs::plonk::Error> {
         let goldilocks_extension_chip = self.goldilocks_extension_chip(goldilocks_chip_config);
-        let base = goldilocks_extension_chip
-            .constant_extension(ctx, &[Goldilocks::from(2), Goldilocks::zero()])?;
+        let base = goldilocks_extension_chip.two_extension(ctx)?;
         let sum = &local_wires[Self::WIRE_SUM];
         let limbs = local_wires[self.limbs()].to_vec();
         let computed_sum = goldilocks_extension_chip.reduce_extension(ctx, &base, &limbs)?;

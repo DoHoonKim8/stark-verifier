@@ -7,6 +7,7 @@ use halo2wrong::RegionCtx;
 use crate::snark::{
     chip::{
         goldilocks_chip::GoldilocksChipConfig,
+        goldilocks_extension_algebra_chip::AssignedExtensionAlgebra,
         plonk::gates::poseidon::{MDS_MATRIX_CIRC, MDS_MATRIX_DIAG},
     },
     types::assigned::{AssignedExtensionFieldValue, AssignedHashValues},
@@ -34,18 +35,20 @@ impl PoseidonMDSGateConstrainer {
         ctx: &mut RegionCtx<'_, F>,
         goldilocks_chip_config: &GoldilocksChipConfig<F>,
         row: usize,
-        state: &Vec<AssignedExtensionFieldValue<F, 2>>,
-    ) -> Result<AssignedExtensionFieldValue<F, 2>, Error> {
+        state: &Vec<AssignedExtensionAlgebra<F>>,
+    ) -> Result<AssignedExtensionAlgebra<F>, Error> {
         debug_assert!(row < T);
         let goldilocks_extension_chip = self.goldilocks_extension_chip(goldilocks_chip_config);
-        let mut res = goldilocks_extension_chip.zero_extension(ctx)?;
+        let goldilocks_extension_algebra_chip =
+            self.goldilocks_extension_algebra_chip(goldilocks_chip_config);
+        let mut res = goldilocks_extension_algebra_chip.zero_ext_algebra(ctx)?;
 
         for i in 0..T {
             let c = goldilocks_extension_chip.constant_extension(
                 ctx,
                 &[Goldilocks::from(MDS_MATRIX_CIRC[i]), Goldilocks::zero()],
             )?;
-            res = goldilocks_extension_chip.mul_add_extension(
+            res = goldilocks_extension_algebra_chip.scalar_mul_add_ext_algebra(
                 ctx,
                 &c,
                 &state[(i + row) % T],
@@ -56,7 +59,12 @@ impl PoseidonMDSGateConstrainer {
             ctx,
             &[Goldilocks::from(MDS_MATRIX_DIAG[row]), Goldilocks::zero()],
         )?;
-        res = goldilocks_extension_chip.mul_add_extension(ctx, &c, &state[row], &res)?;
+        res = goldilocks_extension_algebra_chip.scalar_mul_add_ext_algebra(
+            ctx,
+            &c,
+            &state[row],
+            &res,
+        )?;
 
         Ok(res)
     }
@@ -65,8 +73,8 @@ impl PoseidonMDSGateConstrainer {
         &self,
         ctx: &mut RegionCtx<'_, F>,
         goldilocks_chip_config: &GoldilocksChipConfig<F>,
-        state: &Vec<AssignedExtensionFieldValue<F, 2>>,
-    ) -> Vec<AssignedExtensionFieldValue<F, 2>> {
+        state: &Vec<AssignedExtensionAlgebra<F>>,
+    ) -> Vec<AssignedExtensionAlgebra<F>> {
         let mut result = vec![];
         for i in 0..T {
             result.push(
@@ -87,19 +95,21 @@ impl<F: FieldExt> CustomGateConstrainer<F> for PoseidonMDSGateConstrainer {
         local_wires: &[AssignedExtensionFieldValue<F, 2>],
         public_inputs_hash: &AssignedHashValues<F>,
     ) -> Result<Vec<AssignedExtensionFieldValue<F, 2>>, Error> {
-        let goldilocks_extension_chip = self.goldilocks_extension_chip(goldilocks_chip_config);
+        let goldilocks_extension_algebra_chip =
+            self.goldilocks_extension_algebra_chip(goldilocks_chip_config);
         let inputs = (0..T)
-            .map(|i| local_wires[Self::wires_input(i)][0].clone())
+            .map(|i| self.get_local_ext_algebra(local_wires, Self::wires_input(i)))
             .collect::<Vec<_>>();
         let computed_outputs = self.mds_layer(ctx, goldilocks_chip_config, &inputs);
 
         let constraints = (0..T)
-            .map(|i| local_wires[Self::wires_output(i)][0].clone())
+            .map(|i| self.get_local_ext_algebra(local_wires, Self::wires_output(i)))
             .zip(computed_outputs)
-            .map(|(out, computed_out)| {
-                goldilocks_extension_chip
-                    .sub_extension(ctx, &out, &computed_out)
+            .flat_map(|(out, computed_out)| {
+                goldilocks_extension_algebra_chip
+                    .sub_ext_algebra(ctx, &out, &computed_out)
                     .unwrap()
+                    .to_ext_array()
             })
             .collect();
         Ok(constraints)

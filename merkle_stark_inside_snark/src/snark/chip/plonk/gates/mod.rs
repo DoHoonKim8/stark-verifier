@@ -7,6 +7,7 @@ use halo2curves::FieldExt;
 use halo2wrong::RegionCtx;
 use plonky2::{field::goldilocks_field::GoldilocksField, gates::gate::GateRef};
 
+use self::arithmetic_extension::ArithmeticExtensionGateConstrainer;
 use self::base_sum::BaseSumGateConstrainer;
 use self::multiplication_extension::MulExtensionGateConstrainer;
 use self::poseidon::PoseidonGateConstrainer;
@@ -20,6 +21,9 @@ use self::{
 };
 
 use crate::snark::chip::goldilocks_chip::GoldilocksChipConfig;
+use crate::snark::chip::goldilocks_extension_algebra_chip::{
+    AssignedExtensionAlgebra, GoldilocksExtensionAlgebraChip,
+};
 use crate::snark::chip::goldilocks_extension_chip::GoldilocksExtensionChip;
 use crate::snark::types::assigned::{AssignedExtensionFieldValue, AssignedHashValues};
 
@@ -39,13 +43,30 @@ pub mod random_access;
 pub mod reducing;
 pub mod reducing_extension;
 
-/// Represents Plonky2's custom gate. Evaluate gate constraint in `plonk_zeta` inside halo2 circuit.
+/// Evaluate custom gate constraints in `plonk_zeta` inside maingate.
 pub trait CustomGateConstrainer<F: FieldExt>: CustomGateConstrainerClone<F> {
+    fn get_local_ext_algebra(
+        &self,
+        local_wires: &[AssignedExtensionFieldValue<F, 2>],
+        wire_range: Range<usize>,
+    ) -> AssignedExtensionAlgebra<F> {
+        debug_assert_eq!(wire_range.len(), 2);
+        let arr = local_wires[wire_range].to_vec().try_into().unwrap();
+        AssignedExtensionAlgebra(arr)
+    }
+
     fn goldilocks_extension_chip(
         &self,
         goldilocks_chip_config: &GoldilocksChipConfig<F>,
     ) -> GoldilocksExtensionChip<F> {
         GoldilocksExtensionChip::new(goldilocks_chip_config)
+    }
+
+    fn goldilocks_extension_algebra_chip(
+        &self,
+        goldilocks_chip_config: &GoldilocksChipConfig<F>,
+    ) -> GoldilocksExtensionAlgebraChip<F> {
+        GoldilocksExtensionAlgebraChip::new(goldilocks_chip_config)
     }
 
     fn eval_unfiltered_constraint(
@@ -151,13 +172,18 @@ impl<F: FieldExt> From<&GateRef<GoldilocksField, 2>> for CustomGateRef<F> {
                 }))
             },
             "ArithmeticExtensionGate { num_ops: 10 }" => {
-                Self(Box::new(ArithmeticGateConstrainer {
+                Self(Box::new(ArithmeticExtensionGateConstrainer {
                     num_ops: 10
                 }))
             },
             "MulExtensionGate { num_ops: 13 }" => {
                 Self(Box::new(MulExtensionGateConstrainer {
                     num_ops: 13
+                }))
+            },
+            "BaseSumGate { num_limbs: 4 } + Base: 2" => {
+                Self(Box::new(BaseSumGateConstrainer {
+                    num_limbs: 4
                 }))
             },
             s => {
