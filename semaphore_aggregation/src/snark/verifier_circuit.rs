@@ -2,7 +2,7 @@ use crate::snark::types::proof::ProofValues;
 use halo2_proofs::{arithmetic::FieldExt, circuit::*, halo2curves::bn256::Fr, plonk::*};
 use halo2curves::goldilocks::fp::Goldilocks;
 use halo2wrong::RegionCtx;
-use halo2wrong_maingate::{MainGate, MainGateConfig};
+use halo2wrong_maingate::{MainGate, MainGateConfig, MainGateInstructions};
 use poseidon::Spec;
 use std::marker::PhantomData;
 
@@ -81,8 +81,7 @@ impl Circuit<Fr> for Verifier {
         layouter.assign_region(
             || "stark_verifier",
             |region| {
-                let offset = 0;
-                let ctx = &mut RegionCtx::new(region, offset);
+                let ctx = &mut RegionCtx::new(region, 0);
                 let goldilocks_chip_config = GoldilocksChip::configure(&config.main_gate_config);
                 let plonk_verifier_chip = PlonkVerifierChip::construct(&goldilocks_chip_config);
 

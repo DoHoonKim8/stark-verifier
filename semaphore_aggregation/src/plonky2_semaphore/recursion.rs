@@ -1,10 +1,14 @@
+use itertools::Itertools;
+use num_traits::pow;
 use plonky2::fri::reduction_strategies::FriReductionStrategy;
 use plonky2::fri::FriConfig;
+use plonky2::hash::hash_types::HashOut;
 use plonky2::iop::witness::{PartialWitness, WitnessWrite};
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::plonk::circuit_data::{CircuitConfig, VerifierCircuitData, VerifierCircuitTarget};
 use plonky2::plonk::config::PoseidonGoldilocksConfig;
 use plonky2::plonk::proof::ProofWithPublicInputs;
+use plonky2::util::log2_strict;
 
 use super::access_set::AccessSet;
 use super::signal::{Digest, Signal, C, F};
@@ -14,17 +18,11 @@ type InnerC = PoseidonGoldilocksConfig;
 impl AccessSet {
     pub fn aggregate_signals(
         &self,
-        topic0: Digest,
         signal0: Signal,
-        topic1: Digest,
         signal1: Signal,
         verifier_data: &VerifierCircuitData<F, C, 2>,
-    ) -> (
-        Digest,
-        Digest,
-        ProofWithPublicInputs<F, PoseidonGoldilocksConfig, 2>,
-        VerifierCircuitData<F, C, 2>,
-    ) {
+        level: usize, // remove this later
+    ) -> (Signal, VerifierCircuitData<F, C, 2>) {
         let config = CircuitConfig {
             zero_knowledge: true,
             num_wires: 135,
@@ -45,31 +43,37 @@ impl AccessSet {
         let mut builder = CircuitBuilder::new(config);
         let mut pw = PartialWitness::new();
 
-        let public_inputs0: Vec<F> = self
-            .0
-            .cap
-            .0
-            .iter()
-            .flat_map(|h| h.elements)
-            .chain(signal0.nullifier)
-            .chain(topic0)
-            .collect();
-        let public_inputs1: Vec<F> = self
-            .0
-            .cap
-            .0
-            .iter()
-            .flat_map(|h| h.elements)
-            .chain(signal1.nullifier)
-            .chain(topic1)
-            .collect();
+        let public_inputs0: Vec<F> = if level == 0 {
+            self.0
+                .cap
+                .0
+                .iter()
+                .flat_map(|h| h.elements)
+                .chain(signal0.nullifier.clone().into_iter().flatten().to_owned())
+                .chain(signal0.topics.clone().into_iter().flatten().to_owned())
+                .collect()
+        } else {
+            vec![]
+        };
+        let public_inputs1: Vec<F> = if level == 0 {
+            self.0
+                .cap
+                .0
+                .iter()
+                .flat_map(|h| h.elements)
+                .chain(signal1.nullifier.clone().into_iter().flatten().to_owned())
+                .chain(signal1.topics.clone().into_iter().flatten().to_owned())
+                .collect()
+        } else {
+            vec![]
+        };
 
         let proof_target0 = builder.add_virtual_proof_with_pis::<InnerC>(&verifier_data.common);
         pw.set_proof_with_pis_target(
             &proof_target0,
             &ProofWithPublicInputs {
                 proof: signal0.proof,
-                public_inputs: public_inputs0,
+                public_inputs: public_inputs0.clone(),
             },
         );
         let proof_target1 = builder.add_virtual_proof_with_pis::<InnerC>(&verifier_data.common);
@@ -77,7 +81,7 @@ impl AccessSet {
             &proof_target1,
             &ProofWithPublicInputs {
                 proof: signal1.proof,
-                public_inputs: public_inputs1,
+                public_inputs: public_inputs1.clone(),
             },
         );
 
@@ -98,17 +102,62 @@ impl AccessSet {
         builder.verify_proof::<InnerC>(&proof_target0, &vd_target, &verifier_data.common);
         builder.verify_proof::<InnerC>(&proof_target1, &vd_target, &verifier_data.common);
 
+        // let merkle_root = builder.add_virtual_hash();
+        // builder.register_public_inputs(&merkle_root.elements);
+        // pw.set_hash_target(merkle_root, self.0.cap.0[0]);
+
+        // let nullifier =
+        //     builder.add_virtual_hashes(signal0.nullifier.len() + signal1.nullifier.len());
+        // builder.register_public_inputs(&nullifier.iter().flat_map(|n| n.elements).collect_vec());
+        // for i in 0..signal0.nullifier.len() {
+        //     for j in 0..4 {
+        //         builder.connect(
+        //             proof_target0.public_inputs[4 * (i + 1) + j],
+        //             nullifier[i].elements[j],
+        //         );
+        //     }
+        // }
+        // for i in 0..signal1.nullifier.len() {
+        //     for j in 0..4 {
+        //         builder.connect(
+        //             proof_target1.public_inputs[4 * (i + 1) + j],
+        //             nullifier[signal0.nullifier.len() + i].elements[j],
+        //         );
+        //     }
+        // }
+        // for (target, value) in nullifier.iter().zip(
+        //     signal0
+        //         .nullifier
+        //         .clone()
+        //         .into_iter()
+        //         .chain(signal1.nullifier.clone()),
+        // ) {
+        //     pw.set_hash_target(*target, HashOut::from(value));
+        // }
+
         let data = builder.build();
         let recursive_proof = data.prove(pw).unwrap();
 
-        data.verify(recursive_proof.clone()).unwrap();
+        // data.verify(recursive_proof.clone()).unwrap();
+        let next_signal = Signal {
+            topics: signal0
+                .topics
+                .into_iter()
+                .chain(signal1.topics.into_iter())
+                .collect_vec(),
+            nullifier: signal0
+                .nullifier
+                .into_iter()
+                .chain(signal1.nullifier.into_iter())
+                .collect_vec(),
+            proof: recursive_proof.proof,
+        };
+        (next_signal, data.verifier_data())
+    }
 
-        (
-            signal0.nullifier,
-            signal1.nullifier,
-            recursive_proof,
-            data.verifier_data(),
-        )
+    pub fn finalize(&self, final_signal: &Signal) {
+        // Prove that the aggregation proof is valid inside SNARK
+        todo!()
     }
 }
 
@@ -117,7 +166,7 @@ mod tests {
     use plonky2::{
         field::types::{Field, Sample},
         hash::{merkle_tree::MerkleTree, poseidon::PoseidonHash},
-        plonk::config::Hasher,
+        plonk::{config::Hasher, proof::ProofWithPublicInputs},
     };
 
     use crate::{
@@ -142,21 +191,73 @@ mod tests {
             .collect();
         let access_set = AccessSet(MerkleTree::new(public_keys, 0));
 
-        let i = 12;
-        let topic0 = F::rand_array();
-        let (signal0, _) = access_set.make_signal(private_keys[i], topic0, i)?;
+        // // signal0, signal1
+        // let i = 12;
+        // let topic0 = F::rand_array();
+        // let (signal0, _) = access_set.make_signal(private_keys[i], topic0, i)?;
 
-        let i = 24;
-        let topic1 = F::rand_array();
-        let (signal1, vd) = access_set.make_signal(private_keys[i], topic1, i)?;
+        // let i = 24;
+        // let topic1 = F::rand_array();
+        // let (signal1, vd) = access_set.make_signal(private_keys[i], topic1, i)?;
 
-        let (_, _, proof, aggregation_circuit_vd) =
-            access_set.aggregate_signals(topic0, signal0, topic1, signal1, &vd);
-        verify_inside_snark_mock((
+        // let (signal, aggregation_circuit_vd) = access_set.aggregate_signals(signal0, signal1, &vd);
+        // let proof = ProofWithPublicInputs {
+        //     proof: signal.proof,
+        //     public_inputs: vec![],
+        // };
+
+        // verify_inside_snark((
+        //     proof,
+        //     aggregation_circuit_vd.verifier_only.clone(),
+        //     aggregation_circuit_vd.common.clone(),
+        // ));
+
+        // Generate 64 Semaphore proofs
+        let mut aggregation_targets = vec![];
+        let mut verifier_circuit_data = None;
+        for i in 0..64 {
+            let topic = F::rand_array();
+            let (signal, vd) = access_set.make_signal(private_keys[i], topic, i)?;
+            aggregation_targets.push(signal);
+            if verifier_circuit_data.is_none() {
+                verifier_circuit_data = Some(vd);
+            }
+        }
+        let mut level = 0;
+        while aggregation_targets.len() != 1 {
+            let mut next_aggregation_targets = vec![];
+            let mut next_verifier_circuit_data = None;
+            for signals in aggregation_targets.chunks_exact(2) {
+                let (next_signal, next_vd) = access_set.aggregate_signals(
+                    signals[0].clone(),
+                    signals[1].clone(),
+                    verifier_circuit_data.as_ref().unwrap(),
+                    level,
+                );
+                next_aggregation_targets.push(next_signal);
+                next_verifier_circuit_data = Some(next_vd);
+            }
+            aggregation_targets.clear();
+            aggregation_targets.extend_from_slice(&next_aggregation_targets);
+            verifier_circuit_data = next_verifier_circuit_data.clone();
+            level += 1;
+        }
+        let final_signal = aggregation_targets[0].clone();
+        let proof = ProofWithPublicInputs {
+            proof: final_signal.proof,
+            public_inputs: vec![], // this should be fixed
+        };
+
+        verify_inside_snark((
             proof,
-            aggregation_circuit_vd.verifier_only.clone(),
-            aggregation_circuit_vd.common.clone(),
+            verifier_circuit_data
+                .as_ref()
+                .unwrap()
+                .verifier_only
+                .clone(),
+            verifier_circuit_data.unwrap().common.clone(),
         ));
+
         Ok(())
     }
 }

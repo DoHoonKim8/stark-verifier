@@ -160,9 +160,8 @@ pub fn verify_inside_snark_mock(proof: ProofTuple<GoldilocksField, PoseidonGoldi
 
     let spec = Spec::<Goldilocks, 12, 11>::new(8, 22);
 
-    let verifier_circuit = Verifier::new(proof, public_inputs, vk, common_data, spec);
-    let instance = vec![vec![]];
-    let _prover = MockProver::run(23, &verifier_circuit, instance).unwrap();
+    let verifier_circuit = Verifier::new(proof, public_inputs.clone(), vk, common_data, spec);
+    let _prover = MockProver::run(23, &verifier_circuit, vec![vec![]]).unwrap();
     _prover.assert_satisfied()
 }
 
@@ -186,9 +185,10 @@ pub fn verify_inside_snark(proof: ProofTuple<GoldilocksField, PoseidonGoldilocks
     let instance = vec![vec![]];
     let mock_prover = MockProver::run(23, &circuit, instance).unwrap();
     mock_prover.assert_satisfied();
+    println!("Mock prover passes");
 
     // generates EVM verifier
-    let params = EvmVerifier::gen_srs(23);
+    let params = EvmVerifier::gen_srs(19);
     let pk = EvmVerifier::gen_pk(&params, &circuit);
     let deployment_code = EvmVerifier::gen_evm_verifier(&params, pk.get_vk(), vec![0]);
 

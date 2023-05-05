@@ -1,4 +1,5 @@
 use plonky2::field::goldilocks_field::GoldilocksField;
+use plonky2::plonk::circuit_data::VerifierCircuitData;
 use plonky2::plonk::config::PoseidonGoldilocksConfig;
 use plonky2::plonk::proof::Proof;
 
@@ -7,9 +8,10 @@ pub type Digest = [F; 4];
 pub type C = PoseidonGoldilocksConfig;
 pub type PlonkyProof = Proof<F, PoseidonGoldilocksConfig, 2>;
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct Signal {
-    pub nullifier: Digest,
+    pub topics: Vec<Digest>,
+    pub nullifier: Vec<Digest>,
     pub proof: PlonkyProof,
 }
 
@@ -42,6 +44,6 @@ mod tests {
         let topic = F::rand_array();
 
         let (signal, vd) = access_set.make_signal(private_keys[i], topic, i)?;
-        access_set.verify_signal(topic, signal, &vd)
+        access_set.verify_signal(signal, &vd)
     }
 }

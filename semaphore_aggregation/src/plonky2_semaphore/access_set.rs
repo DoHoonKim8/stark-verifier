@@ -18,7 +18,6 @@ pub struct AccessSet(pub MerkleTree<F, PoseidonHash>);
 impl AccessSet {
     pub fn verify_signal(
         &self,
-        topic: Digest,
         signal: Signal,
         verifier_data: &VerifierCircuitData<F, C, 2>,
     ) -> Result<()> {
@@ -28,8 +27,8 @@ impl AccessSet {
             .0
             .iter()
             .flat_map(|h| h.elements)
-            .chain(signal.nullifier)
-            .chain(topic)
+            .chain(signal.nullifier.into_iter().flatten().to_owned())
+            .chain(signal.topics.into_iter().flatten().to_owned())
             .collect();
 
         // verifier_data.verify(ProofWithPublicInputs {
@@ -83,7 +82,8 @@ impl AccessSet {
 
         Ok((
             Signal {
-                nullifier,
+                topics: vec![topic],
+                nullifier: vec![nullifier],
                 proof: proof.proof,
             },
             data.verifier_data(),
