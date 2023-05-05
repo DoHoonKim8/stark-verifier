@@ -24,3 +24,6 @@ num-integer = "0.1"
 num-traits = "0.2"
 num-bigint = { version = "0.4", features = ["rand"] }
 snark-verifier = { git = "https://github.com/privacy-scaling-explorations/snark-verifier.git", tag = "v2023_02_02" }
+colored = "2.0.0"
+halo2_kzg_srs = { git = "https://github.com/han0110/halo2-kzg-srs" }
+rayon = "1.5.3"

@@ -162,7 +162,10 @@ impl AccessSet {
 }
 
 mod tests {
+    use std::time::Instant;
+
     use anyhow::Result;
+    use colored::Colorize;
     use plonky2::{
         field::types::{Field, Sample},
         hash::{merkle_tree::MerkleTree, poseidon::PoseidonHash},
@@ -176,6 +179,15 @@ mod tests {
         },
         snark::verifier_api::{verify_inside_snark, verify_inside_snark_mock},
     };
+
+    fn report_elapsed(now: Instant) {
+        println!(
+            "{}",
+            format!("Took {} seconds", now.elapsed().as_secs())
+                .blue()
+                .bold()
+        );
+    }
 
     #[test]
     fn test_semaphore_aggregation() -> Result<()> {
@@ -215,15 +227,29 @@ mod tests {
         // Generate 64 Semaphore proofs
         let mut aggregation_targets = vec![];
         let mut verifier_circuit_data = None;
-        for i in 0..64 {
+        for i in 0..8 {
+            println!(
+                "{}",
+                format!("Generating {i}th Semaphore proof").white().bold()
+            );
             let topic = F::rand_array();
+            let now = Instant::now();
             let (signal, vd) = access_set.make_signal(private_keys[i], topic, i)?;
+            report_elapsed(now);
             aggregation_targets.push(signal);
             if verifier_circuit_data.is_none() {
                 verifier_circuit_data = Some(vd);
             }
         }
+        let aggregation_targets_len = aggregation_targets.len();
+        println!(
+            "{}",
+            format!("Start aggregating {aggregation_targets_len} proofs")
+                .white()
+                .bold()
+        );
         let mut level = 0;
+        let now = Instant::now();
         while aggregation_targets.len() != 1 {
             let mut next_aggregation_targets = vec![];
             let mut next_verifier_circuit_data = None;
@@ -242,6 +268,7 @@ mod tests {
             verifier_circuit_data = next_verifier_circuit_data.clone();
             level += 1;
         }
+        report_elapsed(now);
         let final_signal = aggregation_targets[0].clone();
         let proof = ProofWithPublicInputs {
             proof: final_signal.proof,

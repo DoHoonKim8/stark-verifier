@@ -43,7 +43,7 @@ impl AccessSet {
             verifier_data.verifier_only.clone(),
             verifier_data.common.clone(),
         );
-        verify_inside_snark_mock(proof);
+        verify_inside_snark(proof);
         Ok(())
     }
 

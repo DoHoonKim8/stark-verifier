@@ -1,6 +1,11 @@
+use std::path::PathBuf;
 use std::rc::Rc;
+use std::time::Instant;
 
 use crate::ProofTuple;
+use anyhow::Context;
+use colored::Colorize;
+use halo2_kzg_srs::{Srs, SrsFormat};
 use halo2_proofs::dev::MockProver;
 use halo2_proofs::halo2curves::bn256::{Bn256, Fq, Fr, G1Affine};
 use halo2_proofs::plonk::{
@@ -35,6 +40,23 @@ struct EvmVerifier {}
 impl EvmVerifier {
     fn gen_srs(k: u32) -> ParamsKZG<Bn256> {
         ParamsKZG::<Bn256>::setup(k, OsRng)
+    }
+
+    fn prepare_params(path: PathBuf) -> ParamsKZG<Bn256> {
+        let srs = Srs::<Bn256>::read(
+            &mut std::fs::File::open(path.clone())
+                .with_context(|| {
+                    format!("Failed to read .srs file {}", path.to_str().unwrap())
+                })
+                .unwrap(),
+            SrsFormat::PerpetualPowerOfTau(23),
+        );
+
+        let mut buf = Vec::new();
+        srs.write(&mut buf);
+        let params = ParamsKZG::<Bn256>::read(&mut std::io::Cursor::new(buf))
+            .with_context(|| "Malformed params file").unwrap();
+        params
     }
 
     fn gen_pk<C: Circuit<Fr>>(params: &ParamsKZG<Bn256>, circuit: &C) -> ProvingKey<G1Affine> {
@@ -141,6 +163,15 @@ impl EvmVerifier {
     }
 }
 
+fn report_elapsed(now: Instant) {
+    println!(
+        "{}",
+        format!("Took {} seconds", now.elapsed().as_secs())
+            .blue()
+            .bold()
+    );
+}
+
 /// Public API for generating Halo2 proof for Plonky2 verifier circuit
 /// feed Plonky2 proof, `VerifierOnlyCircuitData`, `CommonCircuitData`
 /// This runs only mock prover for constraint check
@@ -188,11 +219,21 @@ pub fn verify_inside_snark(proof: ProofTuple<GoldilocksField, PoseidonGoldilocks
     println!("Mock prover passes");
 
     // generates EVM verifier
-    let params = EvmVerifier::gen_srs(19);
+    let params = EvmVerifier::gen_srs(23);
     let pk = EvmVerifier::gen_pk(&params, &circuit);
     let deployment_code = EvmVerifier::gen_evm_verifier(&params, pk.get_vk(), vec![0]);
 
     // generates SNARK proof and runs EVM verifier
+    println!(
+        "{}",
+        "Starting finalization phase".red().bold()
+    );
+    let now = Instant::now();
     let proof = EvmVerifier::gen_proof(&params, &pk, circuit.clone(), vec![vec![]]);
+    println!(
+        "{}",
+        "SNARK proof generated!".white().bold()
+    );
+    report_elapsed(now);
     EvmVerifier::evm_verify(deployment_code, vec![vec![]], proof);
 }
