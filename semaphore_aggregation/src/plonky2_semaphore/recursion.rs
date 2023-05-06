@@ -238,8 +238,9 @@ mod tests {
             let topic = F::rand_array();
             let (signal, vd) = access_set.make_signal(private_keys[i], topic, i).unwrap();
             aggregation_targets.lock().unwrap().push(signal);
-            if verifier_circuit_data.lock().unwrap().is_none() {
-                verifier_circuit_data.lock().unwrap().replace(vd);
+            let mut verifier_circuit_data = verifier_circuit_data.lock().unwrap();
+            if verifier_circuit_data.is_none() {
+                verifier_circuit_data.replace(vd);
             }
         });
         report_elapsed(now);
@@ -256,16 +257,23 @@ mod tests {
         while aggregation_targets.lock().unwrap().len() != 1 {
             let next_aggregation_targets = Arc::new(Mutex::new(vec![]));
             let next_verifier_circuit_data = Arc::new(Mutex::new(None));
+            // lock `verifier_circuit_data`
+            let verifier_circuit_data_read = verifier_circuit_data.lock().unwrap().as_ref().unwrap().clone();
             aggregation_targets.lock().unwrap().par_chunks_exact(2).for_each(|signals| {
                 let (next_signal, next_vd) = access_set.aggregate_signals(
                     signals[0].clone(),
                     signals[1].clone(),
-                    verifier_circuit_data.lock().unwrap().as_ref().unwrap(),
+                    &verifier_circuit_data_read,
                     level,
                 );
                 next_aggregation_targets.lock().unwrap().push(next_signal);
-                next_verifier_circuit_data.lock().unwrap().replace(next_vd);
+                let mut next_verifier_circuit_data = next_verifier_circuit_data.lock().unwrap();
+                if next_verifier_circuit_data.is_none() {
+                    next_verifier_circuit_data.replace(next_vd);
+                }
             });
+            // drop the lock for `verifier_circuit_data`
+            drop(verifier_circuit_data_read);
             aggregation_targets.lock().unwrap().clear();
             aggregation_targets.lock().unwrap().extend_from_slice(&next_aggregation_targets.lock().unwrap());
             verifier_circuit_data = next_verifier_circuit_data.clone();
