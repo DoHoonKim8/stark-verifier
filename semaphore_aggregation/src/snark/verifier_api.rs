@@ -216,7 +216,7 @@ pub fn verify_inside_snark(proof: ProofTuple<GoldilocksField, PoseidonGoldilocks
     let instance = vec![vec![]];
     let mock_prover = MockProver::run(23, &circuit, instance).unwrap();
     mock_prover.assert_satisfied();
-    println!("Mock prover passes");
+    println!("{}", "Mock prover passes".white().bold());
 
     // generates EVM verifier
     let params = EvmVerifier::gen_srs(23);
@@ -232,7 +232,7 @@ pub fn verify_inside_snark(proof: ProofTuple<GoldilocksField, PoseidonGoldilocks
     let proof = EvmVerifier::gen_proof(&params, &pk, circuit.clone(), vec![vec![]]);
     println!(
         "{}",
-        "SNARK proof generated!".white().bold()
+        "SNARK proof generated successfully!".white().bold()
     );
     report_elapsed(now);
     EvmVerifier::evm_verify(deployment_code, vec![vec![]], proof);
