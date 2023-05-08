@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 
 use halo2_proofs::arithmetic::Field;
+use halo2_proofs::circuit::Layouter;
 use halo2_proofs::plonk::Error;
 use halo2curves::{goldilocks::fp::Goldilocks, FieldExt};
 use halo2wrong::RegionCtx;
@@ -13,7 +14,7 @@ use plonky2::{
 
 use self::assigned::{AssignedExtensionFieldValue, AssignedHashValues, AssignedMerkleCapValues};
 
-use crate::snark::chip::plonk::plonk_verifier_chip::PlonkVerifierChip;
+use super::chip::goldilocks_chip::{GoldilocksChip, GoldilocksChipConfig};
 
 pub mod assigned;
 pub mod common_data;
@@ -33,20 +34,26 @@ pub struct HashValues<F: FieldExt> {
 
 impl<F: FieldExt> HashValues<F> {
     pub fn assign(
-        verifier: &PlonkVerifierChip<F>,
-        ctx: &mut RegionCtx<'_, F>,
+        config: &GoldilocksChipConfig<F>,
+        mut layouter: impl Layouter<F>,
         hash_value: &Self,
     ) -> Result<AssignedHashValues<F>, Error> {
-        let goldilocks_chip = verifier.goldilocks_chip();
-        let elements = hash_value
-            .elements
-            .iter()
-            .map(|e| goldilocks_chip.assign_constant(ctx, *e))
-            .collect::<Result<Vec<AssignedValue<F>>, Error>>()
-            .unwrap()
-            .try_into()
-            .unwrap();
-        Ok(AssignedHashValues { elements })
+        layouter.assign_region(
+            || "",
+            |region| {
+                let ctx = &mut RegionCtx::new(region, 0);
+                let goldilocks_chip = GoldilocksChip::new(config);
+                let elements = hash_value
+                    .elements
+                    .iter()
+                    .map(|e| goldilocks_chip.assign_constant(ctx, *e))
+                    .collect::<Result<Vec<AssignedValue<F>>, Error>>()
+                    .unwrap()
+                    .try_into()
+                    .unwrap();
+                Ok(AssignedHashValues { elements })
+            },
+        )
     }
 }
 
@@ -68,14 +75,14 @@ pub struct MerkleCapValues<F: FieldExt>(pub Vec<HashValues<F>>);
 
 impl<F: FieldExt> MerkleCapValues<F> {
     pub fn assign(
-        verifier: &PlonkVerifierChip<F>,
-        ctx: &mut RegionCtx<'_, F>,
+        config: &GoldilocksChipConfig<F>,
+        mut layouter: impl Layouter<F>,
         merkle_cap_values: &Self,
     ) -> Result<AssignedMerkleCapValues<F>, Error> {
         let elements = merkle_cap_values
             .0
             .iter()
-            .map(|hash_value| HashValues::assign(verifier, ctx, hash_value))
+            .map(|hash_value| HashValues::assign(config, layouter.namespace(|| ""), hash_value))
             .collect::<Result<Vec<AssignedHashValues<F>>, Error>>()?;
         Ok(AssignedMerkleCapValues(elements))
     }
@@ -106,19 +113,25 @@ impl<F: FieldExt, const D: usize> Default for ExtensionFieldValue<F, D> {
 
 impl<F: FieldExt, const D: usize> ExtensionFieldValue<F, D> {
     pub fn assign(
-        verifier: &PlonkVerifierChip<F>,
-        ctx: &mut RegionCtx<'_, F>,
+        config: &GoldilocksChipConfig<F>,
+        mut layouter: impl Layouter<F>,
         extension_field_value: &Self,
     ) -> Result<AssignedExtensionFieldValue<F, D>, Error> {
-        let goldilocks_chip = verifier.goldilocks_chip();
-        let elements = extension_field_value
-            .elements
-            .iter()
-            .map(|v| goldilocks_chip.assign_constant(ctx, *v))
-            .collect::<Result<Vec<AssignedValue<F>>, Error>>()?
-            .try_into()
-            .unwrap();
-        Ok(AssignedExtensionFieldValue(elements))
+        layouter.assign_region(
+            || "",
+            |region| {
+                let ctx = &mut RegionCtx::new(region, 0);
+                let goldilocks_chip = GoldilocksChip::new(config);
+                let elements = extension_field_value
+                    .elements
+                    .iter()
+                    .map(|v| goldilocks_chip.assign_constant(ctx, *v))
+                    .collect::<Result<Vec<AssignedValue<F>>, Error>>()?
+                    .try_into()
+                    .unwrap();
+                Ok(AssignedExtensionFieldValue(elements))
+            },
+        )
     }
 }
 

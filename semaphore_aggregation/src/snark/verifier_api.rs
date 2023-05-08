@@ -6,6 +6,7 @@ use crate::ProofTuple;
 use anyhow::Context;
 use colored::Colorize;
 use halo2_kzg_srs::{Srs, SrsFormat};
+use halo2_proofs::circuit::Value;
 use halo2_proofs::dev::MockProver;
 use halo2_proofs::halo2curves::bn256::{Bn256, Fq, Fr, G1Affine};
 use halo2_proofs::plonk::{
@@ -18,6 +19,7 @@ use halo2_proofs::poly::kzg::strategy::AccumulatorStrategy;
 use halo2_proofs::poly::VerificationStrategy;
 use halo2_proofs::transcript::{TranscriptReadBuffer, TranscriptWriterBuffer};
 use halo2curves::goldilocks::fp::Goldilocks;
+use halo2wrong_maingate::{big_to_fe, fe_to_big};
 use itertools::Itertools;
 use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig};
 use poseidon::Spec;
@@ -45,17 +47,16 @@ impl EvmVerifier {
     fn prepare_params(path: PathBuf) -> ParamsKZG<Bn256> {
         let srs = Srs::<Bn256>::read(
             &mut std::fs::File::open(path.clone())
-                .with_context(|| {
-                    format!("Failed to read .srs file {}", path.to_str().unwrap())
-                })
+                .with_context(|| format!("Failed to read .srs file {}", path.to_str().unwrap()))
                 .unwrap(),
             SrsFormat::PerpetualPowerOfTau(23),
         );
 
         let mut buf = Vec::new();
-        srs.write(&mut buf);
+        srs.write_raw(&mut buf);
         let params = ParamsKZG::<Bn256>::read(&mut std::io::Cursor::new(buf))
-            .with_context(|| "Malformed params file").unwrap();
+            .with_context(|| "Malformed params file")
+            .unwrap();
         params
     }
 
@@ -181,18 +182,18 @@ pub fn verify_inside_snark_mock(proof: ProofTuple<GoldilocksField, PoseidonGoldi
     // proof_with_public_inputs -> ProofValues type
     let proof = ProofValues::<Fr, 2>::from(proof_with_public_inputs.proof);
 
-    let public_inputs = proof_with_public_inputs
+    let instances = proof_with_public_inputs
         .public_inputs
         .iter()
-        .map(|e| types::to_goldilocks(*e))
-        .collect::<Vec<Goldilocks>>();
+        .map(|e| big_to_fe(fe_to_big::<Goldilocks>(types::to_goldilocks(*e))))
+        .collect::<Vec<Fr>>();
     let vk = VerificationKeyValues::from(vd.clone());
     let common_data = CommonData::from(cd);
 
     let spec = Spec::<Goldilocks, 12, 11>::new(8, 22);
 
-    let verifier_circuit = Verifier::new(proof, public_inputs.clone(), vk, common_data, spec);
-    let _prover = MockProver::run(23, &verifier_circuit, vec![vec![]]).unwrap();
+    let verifier_circuit = Verifier::new(proof, instances.clone(), vk, common_data, spec);
+    let _prover = MockProver::run(23, &verifier_circuit, vec![instances]).unwrap();
     _prover.assert_satisfied()
 }
 
@@ -202,38 +203,31 @@ pub fn verify_inside_snark_mock(proof: ProofTuple<GoldilocksField, PoseidonGoldi
 pub fn verify_inside_snark(proof: ProofTuple<GoldilocksField, PoseidonGoldilocksConfig, 2>) {
     let (proof_with_public_inputs, vd, cd) = proof;
     let proof = ProofValues::<Fr, 2>::from(proof_with_public_inputs.proof);
-    let public_inputs = proof_with_public_inputs
+    let instances = proof_with_public_inputs
         .public_inputs
         .iter()
-        .map(|e| types::to_goldilocks(*e))
-        .collect::<Vec<Goldilocks>>();
+        .map(|e| big_to_fe(fe_to_big::<Goldilocks>(types::to_goldilocks(*e))))
+        .collect::<Vec<Fr>>();
     let vk = VerificationKeyValues::from(vd.clone());
     let common_data = CommonData::from(cd);
     let spec = Spec::<Goldilocks, 12, 11>::new(8, 22);
 
     // runs mock prover
-    let circuit = Verifier::new(proof, public_inputs, vk, common_data, spec);
-    let instance = vec![vec![]];
-    let mock_prover = MockProver::run(23, &circuit, instance).unwrap();
+    let circuit = Verifier::new(proof, instances.clone(), vk, common_data, spec);
+    let mock_prover = MockProver::run(22, &circuit, vec![instances]).unwrap();
     mock_prover.assert_satisfied();
     println!("{}", "Mock prover passes".white().bold());
 
     // generates EVM verifier
-    let params = EvmVerifier::gen_srs(23);
+    let params = EvmVerifier::gen_srs(22);
     let pk = EvmVerifier::gen_pk(&params, &circuit);
     let deployment_code = EvmVerifier::gen_evm_verifier(&params, pk.get_vk(), vec![0]);
 
     // generates SNARK proof and runs EVM verifier
-    println!(
-        "{}",
-        "Starting finalization phase".red().bold()
-    );
+    println!("{}", "Starting finalization phase".red().bold());
     let now = Instant::now();
     let proof = EvmVerifier::gen_proof(&params, &pk, circuit.clone(), vec![vec![]]);
-    println!(
-        "{}",
-        "SNARK proof generated successfully!".white().bold()
-    );
+    println!("{}", "SNARK proof generated successfully!".white().bold());
     report_elapsed(now);
     EvmVerifier::evm_verify(deployment_code, vec![vec![]], proof);
 }

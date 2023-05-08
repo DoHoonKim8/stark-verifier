@@ -162,7 +162,10 @@ impl AccessSet {
 }
 
 mod tests {
-    use std::{time::Instant, sync::{Mutex, Arc}};
+    use std::{
+        sync::{Arc, Mutex},
+        time::Instant,
+    };
 
     use anyhow::Result;
     use colored::Colorize;
@@ -171,7 +174,10 @@ mod tests {
         hash::{merkle_tree::MerkleTree, poseidon::PoseidonHash},
         plonk::{config::Hasher, proof::ProofWithPublicInputs},
     };
-    use rayon::{slice::ParallelSlice, prelude::{IntoParallelIterator, ParallelIterator}};
+    use rayon::{
+        prelude::{IntoParallelIterator, ParallelIterator},
+        slice::ParallelSlice,
+    };
 
     use crate::{
         plonky2_semaphore::{
@@ -228,13 +234,15 @@ mod tests {
         // Generate 64 Semaphore proofs
         let aggregation_targets = Arc::new(Mutex::new(vec![]));
         let mut verifier_circuit_data = Arc::new(Mutex::new(None));
-        let num_proofs = 32;
+        let num_proofs = 128;
         let now = Instant::now();
         println!(
             "{}",
-            format!("Generating {num_proofs} Semaphore proofs").white().bold()
+            format!("Generating {num_proofs} Semaphore proofs")
+                .white()
+                .bold()
         );
-        (0..num_proofs).into_par_iter().for_each(|i| { 
+        (0..num_proofs).into_par_iter().for_each(|i| {
             let topic = F::rand_array();
             let (signal, vd) = access_set.make_signal(private_keys[i], topic, i).unwrap();
             aggregation_targets.lock().unwrap().push(signal);
@@ -258,24 +266,36 @@ mod tests {
             let next_aggregation_targets = Arc::new(Mutex::new(vec![]));
             let next_verifier_circuit_data = Arc::new(Mutex::new(None));
             // lock `verifier_circuit_data`
-            let verifier_circuit_data_read = verifier_circuit_data.lock().unwrap().as_ref().unwrap().clone();
-            aggregation_targets.lock().unwrap().par_chunks_exact(2).for_each(|signals| {
-                let (next_signal, next_vd) = access_set.aggregate_signals(
-                    signals[0].clone(),
-                    signals[1].clone(),
-                    &verifier_circuit_data_read,
-                    level,
-                );
-                next_aggregation_targets.lock().unwrap().push(next_signal);
-                let mut next_verifier_circuit_data = next_verifier_circuit_data.lock().unwrap();
-                if next_verifier_circuit_data.is_none() {
-                    next_verifier_circuit_data.replace(next_vd);
-                }
-            });
+            let verifier_circuit_data_read = verifier_circuit_data
+                .lock()
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .clone();
+            aggregation_targets
+                .lock()
+                .unwrap()
+                .par_chunks_exact(2)
+                .for_each(|signals| {
+                    let (next_signal, next_vd) = access_set.aggregate_signals(
+                        signals[0].clone(),
+                        signals[1].clone(),
+                        &verifier_circuit_data_read,
+                        level,
+                    );
+                    next_aggregation_targets.lock().unwrap().push(next_signal);
+                    let mut next_verifier_circuit_data = next_verifier_circuit_data.lock().unwrap();
+                    if next_verifier_circuit_data.is_none() {
+                        next_verifier_circuit_data.replace(next_vd);
+                    }
+                });
             // drop the lock for `verifier_circuit_data`
             drop(verifier_circuit_data_read);
             aggregation_targets.lock().unwrap().clear();
-            aggregation_targets.lock().unwrap().extend_from_slice(&next_aggregation_targets.lock().unwrap());
+            aggregation_targets
+                .lock()
+                .unwrap()
+                .extend_from_slice(&next_aggregation_targets.lock().unwrap());
             verifier_circuit_data = next_verifier_circuit_data.clone();
             level += 1;
         }
@@ -286,12 +306,15 @@ mod tests {
             public_inputs: vec![], // this should be fixed
         };
 
-        let verifier_circuit_data = verifier_circuit_data.lock().unwrap().as_ref().unwrap().clone();
+        let verifier_circuit_data = verifier_circuit_data
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .clone();
         verify_inside_snark((
             proof,
-            verifier_circuit_data
-                .verifier_only
-                .clone(),
+            verifier_circuit_data.verifier_only.clone(),
             verifier_circuit_data.common.clone(),
         ));
 

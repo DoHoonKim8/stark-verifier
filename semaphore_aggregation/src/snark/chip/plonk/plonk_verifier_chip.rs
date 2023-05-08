@@ -40,36 +40,6 @@ impl<F: FieldExt> PlonkVerifierChip<F> {
         GoldilocksChip::<F>::new(&self.goldilocks_chip_config)
     }
 
-    pub fn assign_proof_with_pis(
-        &self,
-        ctx: &mut RegionCtx<'_, F>,
-        public_inputs: &Vec<Goldilocks>,
-        proof: &ProofValues<F, 2>,
-    ) -> Result<AssignedProofWithPisValues<F, 2>, Error> {
-        let goldilocks_chip = self.goldilocks_chip();
-
-        let public_inputs = public_inputs
-            .iter()
-            .map(|pi| goldilocks_chip.assign_constant(ctx, *pi))
-            .collect::<Result<Vec<AssignedValue<F>>, Error>>()?;
-        let proof = ProofValues::assign(&self, ctx, &proof)?;
-        Ok(AssignedProofWithPisValues {
-            proof,
-            public_inputs,
-        })
-    }
-
-    pub fn assign_verification_key(
-        &self,
-        ctx: &mut RegionCtx<'_, F>,
-        vk: &VerificationKeyValues<F>,
-    ) -> Result<AssignedVerificationKeyValues<F>, Error> {
-        Ok(AssignedVerificationKeyValues {
-            constants_sigmas_cap: MerkleCapValues::assign(&self, ctx, &vk.constants_sigmas_cap)?,
-            circuit_digest: HashValues::assign(&self, ctx, &vk.circuit_digest)?,
-        })
-    }
-
     pub fn get_public_inputs_hash(
         &self,
         ctx: &mut RegionCtx<'_, F>,
