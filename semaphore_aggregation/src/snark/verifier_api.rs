@@ -20,6 +20,7 @@ use halo2_proofs::transcript::{TranscriptReadBuffer, TranscriptWriterBuffer};
 use halo2curves::goldilocks::fp::Goldilocks;
 use halo2wrong_maingate::{big_to_fe, fe_to_big};
 use itertools::Itertools;
+use lazy_static::lazy_static;
 use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig};
 use poseidon::Spec;
 use rand::rngs::OsRng;
@@ -36,10 +37,14 @@ use super::verifier_circuit::Verifier;
 
 type PlonkVerifier = verifier::plonk::PlonkVerifier<KzgAs<Bn256, Gwc19>>;
 
+lazy_static! {
+    static ref SRS: ParamsKZG<Bn256> = EvmVerifier::gen_srs(23);
+}
+
 struct EvmVerifier {}
 
 impl EvmVerifier {
-    fn gen_srs(k: u32) -> ParamsKZG<Bn256> {
+    pub fn gen_srs(k: u32) -> ParamsKZG<Bn256> {
         ParamsKZG::<Bn256>::setup(k, OsRng)
     }
 
@@ -166,7 +171,7 @@ impl EvmVerifier {
 fn report_elapsed(now: Instant) {
     println!(
         "{}",
-        format!("Took {} seconds", now.elapsed().as_secs())
+        format!("Took {} milliseconds", now.elapsed().as_millis())
             .blue()
             .bold()
     );
@@ -213,19 +218,18 @@ pub fn verify_inside_snark(proof: ProofTuple<GoldilocksField, PoseidonGoldilocks
 
     // runs mock prover
     let circuit = Verifier::new(proof, instances.clone(), vk, common_data, spec);
-    let mock_prover = MockProver::run(23, &circuit, vec![instances.clone()]).unwrap();
+    let mock_prover = MockProver::run(22, &circuit, vec![instances.clone()]).unwrap();
     mock_prover.assert_satisfied();
     println!("{}", "Mock prover passes".white().bold());
 
     // generates EVM verifier
-    let params = EvmVerifier::gen_srs(23);
-    let pk = EvmVerifier::gen_pk(&params, &circuit);
-    let deployment_code = EvmVerifier::gen_evm_verifier(&params, pk.get_vk(), vec![instances.len()]);
+    let pk = EvmVerifier::gen_pk(&SRS, &circuit);
+    let deployment_code = EvmVerifier::gen_evm_verifier(&SRS, pk.get_vk(), vec![instances.len()]);
 
     // generates SNARK proof and runs EVM verifier
     println!("{}", "Starting finalization phase".red().bold());
     let now = Instant::now();
-    let proof = EvmVerifier::gen_proof(&params, &pk, circuit.clone(), vec![instances.clone()]);
+    let proof = EvmVerifier::gen_proof(&SRS, &pk, circuit.clone(), vec![instances.clone()]);
     println!("{}", "SNARK proof generated successfully!".white().bold());
     report_elapsed(now);
     EvmVerifier::evm_verify(deployment_code, vec![instances], proof);

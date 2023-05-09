@@ -1,3 +1,7 @@
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
+
+use colored::Colorize;
 use itertools::Itertools;
 use plonky2::fri::reduction_strategies::FriReductionStrategy;
 use plonky2::fri::FriConfig;
@@ -7,6 +11,10 @@ use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::plonk::circuit_data::{CircuitConfig, VerifierCircuitData, VerifierCircuitTarget};
 use plonky2::plonk::config::PoseidonGoldilocksConfig;
 use plonky2::plonk::proof::ProofWithPublicInputs;
+use rayon::prelude::ParallelIterator;
+use rayon::slice::ParallelSlice;
+
+use crate::plonky2_semaphore::report_elapsed;
 
 use super::access_set::AccessSet;
 use super::signal::{Signal, C, F};
@@ -14,11 +22,12 @@ use super::signal::{Signal, C, F};
 type InnerC = PoseidonGoldilocksConfig;
 
 impl AccessSet {
-    pub fn aggregate_signals(
+    fn aggregate_signals(
         &self,
         signal0: Signal,
         signal1: Signal,
         verifier_data: &VerifierCircuitData<F, C, 2>,
+        is_final: bool,
     ) -> (Signal, VerifierCircuitData<F, C, 2>) {
         let config = CircuitConfig {
             zero_knowledge: true,
@@ -175,6 +184,68 @@ impl AccessSet {
         (next_signal, data.verifier_data())
     }
 
+    pub fn aggregate(
+        &self,
+        aggregation_targets: Arc<Mutex<Vec<Signal>>>,
+        mut verifier_circuit_data: Arc<Mutex<Option<VerifierCircuitData<F, C, 2>>>>,
+    ) -> (Signal, VerifierCircuitData<F, C, 2>) {
+        let aggregation_targets_len = aggregation_targets.lock().unwrap().len();
+        println!(
+            "{}",
+            format!("Start aggregating {aggregation_targets_len} proofs")
+                .white()
+                .bold()
+        );
+        let now = Instant::now();
+        while aggregation_targets.lock().unwrap().len() != 1 {
+            let next_aggregation_targets = Arc::new(Mutex::new(vec![]));
+            let next_verifier_circuit_data = Arc::new(Mutex::new(None));
+            // lock `verifier_circuit_data`
+            let verifier_circuit_data_read = verifier_circuit_data
+                .lock()
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .clone();
+            let is_final = aggregation_targets.lock().unwrap().len() == 2;
+            aggregation_targets
+                .lock()
+                .unwrap()
+                .par_chunks_exact(2)
+                .for_each(|signals| {
+                    let (next_signal, next_vd) = self.aggregate_signals(
+                        signals[0].clone(),
+                        signals[1].clone(),
+                        &verifier_circuit_data_read,
+                        is_final,
+                    );
+                    next_aggregation_targets.lock().unwrap().push(next_signal);
+                    let mut next_verifier_circuit_data = next_verifier_circuit_data.lock().unwrap();
+                    if next_verifier_circuit_data.is_none() {
+                        next_verifier_circuit_data.replace(next_vd);
+                    }
+                });
+            // drop the lock for `verifier_circuit_data`
+            drop(verifier_circuit_data_read);
+            aggregation_targets.lock().unwrap().clear();
+            aggregation_targets
+                .lock()
+                .unwrap()
+                .extend_from_slice(&next_aggregation_targets.lock().unwrap());
+            verifier_circuit_data = next_verifier_circuit_data.clone();
+        }
+        report_elapsed(now);
+        (
+            aggregation_targets.lock().unwrap()[0].clone(),
+            verifier_circuit_data
+                .lock()
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .clone(),
+        )
+    }
+
     pub fn finalize(&self, final_signal: &Signal) {
         // Prove that the aggregation proof is valid inside SNARK
         todo!()
@@ -189,6 +260,7 @@ mod tests {
 
     use anyhow::Result;
     use colored::Colorize;
+    use num_traits::pow;
     use plonky2::{
         field::types::{Field, Sample},
         hash::{merkle_tree::MerkleTree, poseidon::PoseidonHash},
@@ -202,34 +274,17 @@ mod tests {
     use crate::{
         plonky2_semaphore::{
             access_set::AccessSet,
+            recursion::report_elapsed,
             signal::{Digest, F},
         },
         snark::verifier_api::{verify_inside_snark, verify_inside_snark_mock},
     };
 
-    fn report_elapsed(now: Instant) {
-        println!(
-            "{}",
-            format!("Took {} seconds", now.elapsed().as_secs())
-                .blue()
-                .bold()
-        );
-    }
-
-    #[test]
-    fn test_semaphore_aggregation() -> Result<()> {
-        let n = 1 << 20;
-        let private_keys: Vec<Digest> = (0..n).map(|_| F::rand_array()).collect();
-        let public_keys: Vec<Vec<F>> = private_keys
-            .iter()
-            .map(|&sk| {
-                PoseidonHash::hash_no_pad(&[sk, [F::ZERO; 4]].concat())
-                    .elements
-                    .to_vec()
-            })
-            .collect();
-        let access_set = AccessSet(MerkleTree::new(public_keys, 0));
-
+    fn semaphore_aggregation(
+        num_proofs: usize,
+        access_set: &AccessSet,
+        private_keys: &Vec<Digest>,
+    ) -> Result<()> {
         // // signal0, signal1
         // let i = 12;
         // let topic0 = F::rand_array();
@@ -253,8 +308,7 @@ mod tests {
 
         // Generate 64 Semaphore proofs
         let aggregation_targets = Arc::new(Mutex::new(vec![]));
-        let mut verifier_circuit_data = Arc::new(Mutex::new(None));
-        let num_proofs = 128;
+        let verifier_circuit_data = Arc::new(Mutex::new(None));
         let now = Instant::now();
         println!(
             "{}",
@@ -272,52 +326,8 @@ mod tests {
             }
         });
         report_elapsed(now);
-        let aggregation_targets_len = aggregation_targets.lock().unwrap().len();
-        assert_eq!(num_proofs, aggregation_targets_len);
-        println!(
-            "{}",
-            format!("Start aggregating {aggregation_targets_len} proofs")
-                .white()
-                .bold()
-        );
-        let now = Instant::now();
-        while aggregation_targets.lock().unwrap().len() != 1 {
-            let next_aggregation_targets = Arc::new(Mutex::new(vec![]));
-            let next_verifier_circuit_data = Arc::new(Mutex::new(None));
-            // lock `verifier_circuit_data`
-            let verifier_circuit_data_read = verifier_circuit_data
-                .lock()
-                .unwrap()
-                .as_ref()
-                .unwrap()
-                .clone();
-            aggregation_targets
-                .lock()
-                .unwrap()
-                .par_chunks_exact(2)
-                .for_each(|signals| {
-                    let (next_signal, next_vd) = access_set.aggregate_signals(
-                        signals[0].clone(),
-                        signals[1].clone(),
-                        &verifier_circuit_data_read,
-                    );
-                    next_aggregation_targets.lock().unwrap().push(next_signal);
-                    let mut next_verifier_circuit_data = next_verifier_circuit_data.lock().unwrap();
-                    if next_verifier_circuit_data.is_none() {
-                        next_verifier_circuit_data.replace(next_vd);
-                    }
-                });
-            // drop the lock for `verifier_circuit_data`
-            drop(verifier_circuit_data_read);
-            aggregation_targets.lock().unwrap().clear();
-            aggregation_targets
-                .lock()
-                .unwrap()
-                .extend_from_slice(&next_aggregation_targets.lock().unwrap());
-            verifier_circuit_data = next_verifier_circuit_data.clone();
-        }
-        report_elapsed(now);
-        let final_signal = aggregation_targets.lock().unwrap()[0].clone();
+        let (final_signal, verifier_circuit_data) =
+            access_set.aggregate(aggregation_targets.clone(), verifier_circuit_data.clone());
         let proof = ProofWithPublicInputs {
             proof: final_signal.proof,
             public_inputs: access_set
@@ -337,19 +347,31 @@ mod tests {
                 .chain(final_signal.topics.clone().into_iter().flatten().to_owned())
                 .collect(),
         };
-
-        let verifier_circuit_data = verifier_circuit_data
-            .lock()
-            .unwrap()
-            .as_ref()
-            .unwrap()
-            .clone();
         verify_inside_snark((
             proof,
             verifier_circuit_data.verifier_only.clone(),
             verifier_circuit_data.common.clone(),
         ));
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_semaphore_aggregation() -> Result<()> {
+        let n = 1 << 20;
+        let private_keys: Vec<Digest> = (0..n).map(|_| F::rand_array()).collect();
+        let public_keys: Vec<Vec<F>> = private_keys
+            .iter()
+            .map(|&sk| {
+                PoseidonHash::hash_no_pad(&[sk, [F::ZERO; 4]].concat())
+                    .elements
+                    .to_vec()
+            })
+            .collect();
+        let access_set = AccessSet(MerkleTree::new(public_keys, 0));
+        for i in 1..8 {
+            semaphore_aggregation(pow(2, i), &access_set, &private_keys)?;
+        }
         Ok(())
     }
 }

@@ -30,15 +30,15 @@ use super::{
 };
 
 #[derive(Clone)]
-pub struct VerifierConfig<F: FieldExt> {
+pub struct MainGateWithRangeConfig<F: FieldExt> {
     main_gate_config: MainGateConfig,
     _marker: PhantomData<F>,
 }
 
-impl<F: FieldExt> VerifierConfig<F> {
+impl<F: FieldExt> MainGateWithRangeConfig<F> {
     pub fn new(meta: &mut ConstraintSystem<F>) -> Self {
         let main_gate_config = MainGate::<F>::configure(meta);
-        VerifierConfig {
+        MainGateWithRangeConfig {
             main_gate_config,
             _marker: PhantomData,
         }
@@ -139,7 +139,7 @@ impl Verifier {
 }
 
 impl Circuit<Fr> for Verifier {
-    type Config = VerifierConfig<Fr>;
+    type Config = MainGateWithRangeConfig<Fr>;
     type FloorPlanner = V1;
 
     fn without_witnesses(&self) -> Self {
@@ -153,7 +153,7 @@ impl Circuit<Fr> for Verifier {
     }
 
     fn configure(meta: &mut ConstraintSystem<Fr>) -> Self::Config {
-        VerifierConfig::new(meta)
+        MainGateWithRangeConfig::new(meta)
     }
 
     fn synthesize(

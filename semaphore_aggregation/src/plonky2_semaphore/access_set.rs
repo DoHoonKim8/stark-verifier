@@ -1,4 +1,7 @@
+use std::time::Instant;
+
 use anyhow::Result;
+use colored::Colorize;
 use plonky2::fri::reduction_strategies::FriReductionStrategy;
 use plonky2::fri::FriConfig;
 use plonky2::hash::merkle_tree::MerkleTree;
@@ -9,8 +12,9 @@ use plonky2::plonk::circuit_data::{CircuitConfig, VerifierCircuitData};
 use plonky2::plonk::config::Hasher;
 use plonky2::plonk::proof::ProofWithPublicInputs;
 
-use crate::snark::verifier_api::{verify_inside_snark};
+use crate::snark::verifier_api::verify_inside_snark;
 
+use super::report_elapsed;
 use super::signal::{Digest, Signal, C, F};
 
 pub struct AccessSet(pub MerkleTree<F, PoseidonHash>);
@@ -78,8 +82,15 @@ impl AccessSet {
         self.fill_semaphore_targets(&mut pw, private_key, topic, public_key_index, targets);
 
         let data = builder.build();
+        println!(
+            "{}",
+            format!("Generating 1 Semaphore proof")
+                .white()
+                .bold()
+        );
+        let now = Instant::now();
         let proof = data.prove(pw)?;
-
+        report_elapsed(now);
         Ok((
             Signal {
                 topics: vec![topic],
