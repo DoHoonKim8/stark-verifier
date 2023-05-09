@@ -1,11 +1,10 @@
 use crate::snark::chip::goldilocks_chip::{GoldilocksChip, GoldilocksChipConfig};
-use crate::snark::chip::plonk::plonk_verifier_chip::PlonkVerifierChip;
 
 use super::assigned::{
     AssignedExtensionFieldValue, AssignedFriInitialTreeProofValues, AssignedFriProofValues,
     AssignedFriQueryRoundValues, AssignedFriQueryStepValues, AssignedHashValues,
     AssignedMerkleCapValues, AssignedMerkleProofValues, AssignedOpeningSetValues,
-    AssignedPolynomialCoeffsExtValues, AssignedProofValues,
+    AssignedPolynomialCoeffsExtValues,
 };
 use super::{
     to_extension_field_values, to_goldilocks, ExtensionFieldValue, HashValues, MerkleCapValues,
@@ -411,34 +410,5 @@ impl<F: FieldExt> From<Proof<GoldilocksField, PoseidonGoldilocksConfig, 2>> for 
             openings: OpeningSetValues::from(value.openings),
             opening_proof: FriProofValues::from(value.opening_proof),
         }
-    }
-}
-
-impl<F: FieldExt, const D: usize> ProofValues<F, D> {
-    pub fn assign(
-        config: &GoldilocksChipConfig<F>,
-        mut layouter: impl Layouter<F>,
-        proof: &Self,
-    ) -> Result<AssignedProofValues<F, D>, Error> {
-        let wires_cap =
-            MerkleCapValues::assign(config, layouter.namespace(|| ""), &proof.wires_cap)?;
-        let plonk_zs_partial_products_cap = MerkleCapValues::assign(
-            config,
-            layouter.namespace(|| ""),
-            &proof.plonk_zs_partial_products_cap,
-        )?;
-        let quotient_polys_cap =
-            MerkleCapValues::assign(config, layouter.namespace(|| ""), &proof.quotient_polys_cap)?;
-        let openings =
-            OpeningSetValues::assign(config, layouter.namespace(|| ""), &proof.openings)?;
-        let opening_proof =
-            FriProofValues::assign(config, layouter.namespace(|| ""), &proof.opening_proof)?;
-        Ok(AssignedProofValues {
-            wires_cap,
-            plonk_zs_partial_products_cap,
-            quotient_polys_cap,
-            openings,
-            opening_proof,
-        })
     }
 }
