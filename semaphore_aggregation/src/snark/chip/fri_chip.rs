@@ -30,12 +30,6 @@ pub struct FriVerifierChip<F: FieldExt> {
     offset: AssignedValue<F>,
     /// The degree of the purported codeword, measured in bits.
     fri_params: FriParams,
-    /// merkle caps for the initial polynomials before batching
-    initial_merkle_caps: Vec<AssignedMerkleCapValues<F>>,
-    fri_challenges: AssignedFriChallenges<F, 2>,
-    fri_openings: AssignedFriOpenings<F, 2>,
-    fri_proof: AssignedFriProofValues<F, 2>,
-    fri_instance_info: FriInstanceInfo<F, 2>,
 }
 
 impl<F: FieldExt> FriVerifierChip<F> {
@@ -44,22 +38,12 @@ impl<F: FieldExt> FriVerifierChip<F> {
         spec: Spec<Goldilocks, 12, 11>,
         offset: &AssignedValue<F>,
         fri_params: FriParams,
-        initial_merkle_caps: Vec<AssignedMerkleCapValues<F>>,
-        fri_challenges: AssignedFriChallenges<F, 2>,
-        fri_openings: AssignedFriOpenings<F, 2>,
-        fri_proof: AssignedFriProofValues<F, 2>,
-        fri_instance_info: FriInstanceInfo<F, 2>,
     ) -> Self {
         Self {
             goldilocks_chip_config: goldilocks_chip_config.clone(),
             spec,
             offset: offset.clone(),
             fri_params,
-            initial_merkle_caps,
-            fri_challenges,
-            fri_openings,
-            fri_proof,
-            fri_instance_info,
         }
     }
 
@@ -76,18 +60,14 @@ impl<F: FieldExt> FriVerifierChip<F> {
     fn compute_reduced_openings(
         &self,
         ctx: &mut RegionCtx<'_, F>,
+        fri_alpha: &AssignedExtensionFieldValue<F, 2>,
+        fri_openings: &AssignedFriOpenings<F, 2>,
     ) -> Result<Vec<AssignedExtensionFieldValue<F, 2>>, Error> {
         let goldilocks_extension_chip = GoldilocksExtensionChip::new(&self.goldilocks_chip_config);
-        self.fri_openings
+        fri_openings
             .batches
             .iter()
-            .map(|batch| {
-                goldilocks_extension_chip.reduce_extension(
-                    ctx,
-                    &self.fri_challenges.fri_alpha,
-                    &batch.values,
-                )
-            })
+            .map(|batch| goldilocks_extension_chip.reduce_extension(ctx, fri_alpha, &batch.values))
             .collect()
     }
 
@@ -111,6 +91,7 @@ impl<F: FieldExt> FriVerifierChip<F> {
         ctx: &mut RegionCtx<'_, F>,
         x_index_bits: &[AssignedValue<F>],
         cap_index: &AssignedValue<F>,
+        initial_merkle_caps: &[AssignedMerkleCapValues<F>],
         initial_trees_proof: &AssignedFriInitialTreeProofValues<F>,
     ) -> Result<(), Error> {
         let merkle_proof_chip =
@@ -118,7 +99,7 @@ impl<F: FieldExt> FriVerifierChip<F> {
         for (_, ((evals, merkle_proof), cap)) in initial_trees_proof
             .evals_proofs
             .iter()
-            .zip(self.initial_merkle_caps.clone())
+            .zip(initial_merkle_caps)
             .enumerate()
         {
             merkle_proof_chip.verify_merkle_proof_to_cap_with_cap_index(
@@ -136,6 +117,8 @@ impl<F: FieldExt> FriVerifierChip<F> {
     fn batch_initial_polynomials(
         &self,
         ctx: &mut RegionCtx<'_, F>,
+        fri_instance_info: &FriInstanceInfo<F, 2>,
+        fri_alpha: &AssignedExtensionFieldValue<F, 2>,
         // `x` is the initially selected point in FRI
         x: &AssignedValue<F>,
         initial_trees_proof: &AssignedFriInitialTreeProofValues<F>,
@@ -143,10 +126,8 @@ impl<F: FieldExt> FriVerifierChip<F> {
     ) -> Result<AssignedExtensionFieldValue<F, 2>, Error> {
         let goldilocks_extension_chip = self.goldilocks_extension_chip();
         let x = goldilocks_extension_chip.convert_to_extension(ctx, &x)?;
-        let alpha = self.fri_challenges.fri_alpha.clone();
         let mut sum = goldilocks_extension_chip.zero_extension(ctx)?;
-        for (batch, reduced_openings) in self
-            .fri_instance_info
+        for (batch, reduced_openings) in fri_instance_info
             .batches
             .iter()
             .zip(reduced_openings.iter())
@@ -155,17 +136,17 @@ impl<F: FieldExt> FriVerifierChip<F> {
             let evals = polynomials
                 .iter()
                 .map(|p| {
-                    let poly_blinding = self.fri_instance_info.oracles[p.oracle_index].blinding;
+                    let poly_blinding = fri_instance_info.oracles[p.oracle_index].blinding;
                     let salted = self.fri_params.hiding && poly_blinding;
                     initial_trees_proof.unsalted_eval(p.oracle_index, p.polynomial_index, salted)
                 })
                 .collect_vec();
-            let reduced_evals =
-                goldilocks_extension_chip.reduce_base_field_terms_extension(ctx, &alpha, &evals)?;
+            let reduced_evals = goldilocks_extension_chip
+                .reduce_base_field_terms_extension(ctx, fri_alpha, &evals)?;
             let numerator =
                 goldilocks_extension_chip.sub_extension(ctx, &reduced_evals, reduced_openings)?;
             let denominator = goldilocks_extension_chip.sub_extension(ctx, &x, point)?;
-            sum = goldilocks_extension_chip.shift(ctx, &alpha, evals.len(), &sum)?;
+            sum = goldilocks_extension_chip.shift(ctx, fri_alpha, evals.len(), &sum)?;
             sum =
                 goldilocks_extension_chip.div_add_extension(ctx, &numerator, &denominator, &sum)?;
         }
@@ -260,6 +241,11 @@ impl<F: FieldExt> FriVerifierChip<F> {
     fn check_consistency(
         &self,
         ctx: &mut RegionCtx<'_, F>,
+        initial_merkle_caps: &[AssignedMerkleCapValues<F>],
+        fri_instance_info: &FriInstanceInfo<F, 2>,
+        fri_alpha: &AssignedExtensionFieldValue<F, 2>,
+        fri_betas: &[AssignedExtensionFieldValue<F, 2>],
+        fri_proof: &AssignedFriProofValues<F, 2>,
         x_index: &AssignedValue<F>,
         round_proof: &AssignedFriQueryRoundValues<F, 2>,
         reduced_openings: &[AssignedExtensionFieldValue<F, 2>],
@@ -282,6 +268,7 @@ impl<F: FieldExt> FriVerifierChip<F> {
             ctx,
             &x_index_bits,
             &cap_index,
+            initial_merkle_caps,
             &round_proof.initial_trees_proof,
         )?;
 
@@ -291,6 +278,8 @@ impl<F: FieldExt> FriVerifierChip<F> {
 
         let mut prev_eval = self.batch_initial_polynomials(
             ctx,
+            fri_instance_info,
+            fri_alpha,
             &x_from_subgroup,
             &round_proof.initial_trees_proof,
             reduced_openings,
@@ -321,7 +310,7 @@ impl<F: FieldExt> FriVerifierChip<F> {
                 &x_from_subgroup,
                 evals,
                 arity_bits,
-                &self.fri_challenges.fri_betas[i],
+                &fri_betas[i],
             )?;
 
             let merkle_proof_chip =
@@ -331,7 +320,7 @@ impl<F: FieldExt> FriVerifierChip<F> {
                 &evals.iter().flat_map(|eval| eval.0.clone()).collect_vec(),
                 &coset_index_bits,
                 &cap_index,
-                &self.fri_proof.commit_phase_merkle_cap_values[i],
+                &fri_proof.commit_phase_merkle_cap_values[i],
                 &round_proof.steps[i].merkle_proof,
             )?;
 
@@ -343,7 +332,7 @@ impl<F: FieldExt> FriVerifierChip<F> {
 
         // Final check of FRI. After all the reductions, we check that the final polynomial is equal
         // to the one sent by the prover.
-        let final_poly_coeffs = &self.fri_proof.final_poly.0;
+        let final_poly_coeffs = &fri_proof.final_poly.0;
         let final_poly_eval = goldilocks_extension_chip.reduce_extension_field_terms_base(
             ctx,
             &x_from_subgroup,
@@ -353,13 +342,27 @@ impl<F: FieldExt> FriVerifierChip<F> {
         Ok(())
     }
 
-    pub fn verify_fri_proof(&self, ctx: &mut RegionCtx<'_, F>) -> Result<(), Error> {
+    pub fn verify_fri_proof(
+        &self,
+        ctx: &mut RegionCtx<'_, F>,
+        initial_merkle_caps: &[AssignedMerkleCapValues<F>],
+        fri_challenges: &AssignedFriChallenges<F, 2>,
+        fri_openings: &AssignedFriOpenings<F, 2>,
+        fri_proof: &AssignedFriProofValues<F, 2>,
+        fri_instance_info: &FriInstanceInfo<F, 2>,
+    ) -> Result<(), Error> {
         // this value is the same across all queries
-        let reduced_openings = self.compute_reduced_openings(ctx)?;
-        for (i, round_proof) in self.fri_proof.query_round_proofs.iter().enumerate() {
+        let reduced_openings =
+            self.compute_reduced_openings(ctx, &fri_challenges.fri_alpha, fri_openings)?;
+        for (i, round_proof) in fri_proof.query_round_proofs.iter().enumerate() {
             self.check_consistency(
                 ctx,
-                &self.fri_challenges.fri_query_indices[i],
+                initial_merkle_caps,
+                fri_instance_info,
+                &fri_challenges.fri_alpha,
+                &fri_challenges.fri_betas,
+                fri_proof,
+                &fri_challenges.fri_query_indices[i],
                 round_proof,
                 &reduced_openings,
             )?;

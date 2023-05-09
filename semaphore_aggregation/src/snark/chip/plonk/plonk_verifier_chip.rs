@@ -9,13 +9,10 @@ use crate::snark::{
         assigned::{
             AssignedExtensionFieldValue, AssignedFriChallenges, AssignedFriProofValues,
             AssignedHashValues, AssignedProofChallenges, AssignedProofValues,
-            AssignedProofWithPisValues, AssignedVerificationKeyValues,
+            AssignedVerificationKeyValues,
         },
         common_data::CommonData,
         fri::FriInstanceInfo,
-        proof::ProofValues,
-        verification_key::VerificationKeyValues,
-        HashValues, MerkleCapValues,
     },
     RATE, T, T_MINUS_ONE,
 };
@@ -239,13 +236,15 @@ impl<F: FieldExt> PlonkVerifierChip<F> {
             spec.clone(),
             &offset,
             common_data.fri_params.clone(),
-            merkle_caps.to_vec(),
-            challenges.fri_challenges.clone(),
-            proof.openings.to_fri_openings(),
-            proof.opening_proof.clone(),
-            fri_instance_info,
         );
-        fri_chip.verify_fri_proof(ctx)?;
+        fri_chip.verify_fri_proof(
+            ctx,
+            merkle_caps,
+            &challenges.fri_challenges,
+            &proof.openings.to_fri_openings(),
+            &proof.opening_proof,
+            &fri_instance_info,
+        )?;
         Ok(())
     }
 }

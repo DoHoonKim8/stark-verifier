@@ -214,12 +214,12 @@ pub fn verify_inside_snark(proof: ProofTuple<GoldilocksField, PoseidonGoldilocks
 
     // runs mock prover
     let circuit = Verifier::new(proof, instances.clone(), vk, common_data, spec);
-    let mock_prover = MockProver::run(22, &circuit, vec![instances]).unwrap();
+    let mock_prover = MockProver::run(23, &circuit, vec![instances]).unwrap();
     mock_prover.assert_satisfied();
     println!("{}", "Mock prover passes".white().bold());
 
     // generates EVM verifier
-    let params = EvmVerifier::gen_srs(22);
+    let params = EvmVerifier::gen_srs(23);
     let pk = EvmVerifier::gen_pk(&params, &circuit);
     let deployment_code = EvmVerifier::gen_evm_verifier(&params, pk.get_vk(), vec![0]);
 
