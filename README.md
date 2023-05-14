@@ -42,13 +42,9 @@ Each domain $L_0, L_1, \dots$ are cyclic multiplicative subgroups of $\mathbb{F}
 1. Prover sends $[f_0]$ to verifier.
 2. Verifier samples random field value $\beta_0$
 3. Prover splits the polynomial as follows:
-    $$
-    f_0(X) = f_{0, E}(X^2) + X \cdot f_{0, O}(X^2)
-    $$
+    $$f_0(X) = f_{0, E}(X^2) + X \cdot f_{0, O}(X^2)$$
     and computes $f_1(X)$
-    $$
-    f_1(X) = f_{0, E}(X) + \beta_0 \cdot f_{0, O}(X)
-    $$
+    $$f_1(X) = f_{0, E}(X) + \beta_0 \cdot f_{0, O}(X)$$
     Note that $f_1(X)$ has half degree of the degree of $f_0(X)$, and is defined above $L_1 = \{x^2| x \in L_0 \}$ . $L_1$ size is half of the size of $L_0$ .
     
 4. Prover recursively proceeds this for $\log(k)$ rounds.
@@ -60,16 +56,11 @@ In **query** phase, verifier should check that the prover folded the polynomial 
 
 1. Verifier queries random point $v, -v$ in $L_0$, and calculates the correct folded value as follows:
     
-    $$
-    f_0(v) = f_{0, E}(v^2) + v \cdot f_{0, O}(v^2) \\
-    f_0(-v) = f_{0, E}(v^2) - v \cdot f_{0, O}(v^2)
-    $$
+    $$f_0(v) = f_{0, E}(v^2) + v \cdot f_{0, O}(v^2) \\ f_0(-v) = f_{0, E}(v^2) - v \cdot f_{0, O}(v^2)$$
     
     From queried value $f_0(v), f_0(-v)$, verifier can obtain $f_{0, E}(v^2), f_{0, O}(v^2)$ and calculate $f_1(v^2)$ .
     
-    $$
-    f_1(v^2) = f_{0, E}(v^2) + \beta_0 \cdot f_{0, O}(v^2)
-    $$
+    $$f_1(v^2) = f_{0, E}(v^2) + \beta_0 \cdot f_{0, O}(v^2)$$
     
 2. Verifier queries point $v^2$ in $L_1$, and checks the above equation holds.
 3. Verifier checks consistencies between subsequent layers.
@@ -82,9 +73,7 @@ It's quite important to have bird's-eye view on the cost model of FRI, because t
 - Prover time
 For prover, the most dominant cost is to evaluate the polynomial over initial domain. It is the cost of FFT over initial domain. If rate parameter $\rho$ gets smaller, the prover time will increase.
 
-$$
-O(|L_0|\log(|L_0|)) = O(\rho^{-1} \cdot k\log(\rho^{-1} \cdot k))
-$$
+$$O(|L_0|\log(|L_0|)) = O(\rho^{-1} \cdot k\log(\rho^{-1} \cdot k))$$
 
 - Proof length
 In query phase, prover should provide **merkle path** to decommit the evaluation on the queried point. This is the dominant cost for proof length. To achieve $\lambda$ bits of security, the verifier should repeat query phase at least $\lambda / \log(\rho^{-1})$ times. If we do many queries, then the proof length and verification cost will be bigger.
