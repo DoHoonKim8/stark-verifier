@@ -85,10 +85,7 @@ So, how can we use FRI as polynomial commitment scheme? I will re-ask the questi
 
 Let’s assume the following case:
 
-$$
-f: L_0 \rightarrow \mathbb{F}, \; r \in \mathbb{F} \backslash L_0 \\
-f(r)
-$$
+$$f: L_0 \rightarrow \mathbb{F}, r \in \mathbb{F} \backslash L_0$$
 
 How can verifier verifies the opening at $f(r)$? Prover and verifier can simply proceed FRI on the quotient polynomial:
 
