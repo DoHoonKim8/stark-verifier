@@ -5,7 +5,7 @@ use crate::snark::{chip::plonk::gates::CustomGateRef, types::fri::FriOracleInfo}
 use super::{fri::FriPolynomialInfo, to_goldilocks};
 use halo2curves::{goldilocks::fp::Goldilocks, FieldExt};
 use itertools::Itertools;
-use plonky2::{field::goldilocks_field::GoldilocksField, plonk::circuit_data::CommonCircuitData};
+use plonky2::{field::goldilocks_field::GoldilocksField, plonk::circuit_data::CommonCircuitData, hash::hash_types::RichField};
 
 #[derive(Clone, Debug, Default)]
 pub struct FriConfig {

@@ -146,7 +146,7 @@ impl AccessSet {
         );
 
         pw.set_hash_target(merkle_root, self.0.cap.0[0]);
-        pw.set_target_arr(private_key_target, private_key);
+        pw.set_target_arr(&private_key_target, &private_key);
         pw.set_target(
             public_key_index_target,
             F::from_canonical_usize(public_key_index),
