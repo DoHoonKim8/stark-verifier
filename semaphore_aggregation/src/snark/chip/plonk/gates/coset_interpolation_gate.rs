@@ -1,9 +1,16 @@
-use halo2_proofs::arithmetic::Field;
+use std::ops::Range;
+
+use halo2_proofs::{arithmetic::Field, plonk::Error};
 use halo2curves::{goldilocks::fp::Goldilocks, FieldExt};
+use itertools::Itertools;
 use plonky2::field::{goldilocks_field::GoldilocksField, interpolation::barycentric_weights};
 
 use crate::snark::chip::{
-    goldilocks_chip::GoldilocksChipConfig, goldilocks_extension_chip::GoldilocksExtensionChip,
+    goldilocks_chip::GoldilocksChipConfig,
+    goldilocks_extension_algebra_chip::{
+        self, AssignedExtensionAlgebra, GoldilocksExtensionAlgebraChip,
+    },
+    goldilocks_extension_chip::GoldilocksExtensionChip,
 };
 
 use super::CustomGateConstrainer;
@@ -63,32 +70,32 @@ impl CosetInterpolationGateConstrainer {
     /// Wire indices of the `i`th interpolant value.
     pub(crate) fn wires_value(&self, i: usize) -> Range<usize> {
         debug_assert!(i < self.num_points());
-        let start = self.start_values() + i * D;
-        start..start + D
+        let start = self.start_values() + i * 2;
+        start..start + 2
     }
 
     fn start_evaluation_point(&self) -> usize {
-        self.start_values() + self.num_points() * D
+        self.start_values() + self.num_points() * 2
     }
 
     /// Wire indices of the point to evaluate the interpolant at.
     pub(crate) fn wires_evaluation_point(&self) -> Range<usize> {
         let start = self.start_evaluation_point();
-        start..start + D
+        start..start + 2
     }
 
     fn start_evaluation_value(&self) -> usize {
-        self.start_evaluation_point() + D
+        self.start_evaluation_point() + 2
     }
 
     /// Wire indices of the interpolated value.
     pub(crate) fn wires_evaluation_value(&self) -> Range<usize> {
         let start = self.start_evaluation_value();
-        start..start + D
+        start..start + 2
     }
 
     fn start_intermediates(&self) -> usize {
-        self.start_evaluation_value() + D
+        self.start_evaluation_value() + 2
     }
 
     pub fn num_routed_wires(&self) -> usize {
@@ -102,26 +109,26 @@ impl CosetInterpolationGateConstrainer {
     /// The wires corresponding to the i'th intermediate evaluation.
     fn wires_intermediate_eval(&self, i: usize) -> Range<usize> {
         debug_assert!(i < self.num_intermediates());
-        let start = self.start_intermediates() + D * i;
-        start..start + D
+        let start = self.start_intermediates() + 2 * i;
+        start..start + 2
     }
 
     /// The wires corresponding to the i'th intermediate product.
     fn wires_intermediate_prod(&self, i: usize) -> Range<usize> {
         debug_assert!(i < self.num_intermediates());
-        let start = self.start_intermediates() + D * (self.num_intermediates() + i);
-        start..start + D
+        let start = self.start_intermediates() + 2 * (self.num_intermediates() + i);
+        start..start + 2
     }
 
     /// End of wire indices, exclusive.
     fn end(&self) -> usize {
-        self.start_intermediates() + D * (2 * self.num_intermediates() + 1)
+        self.start_intermediates() + 2 * (2 * self.num_intermediates() + 1)
     }
 
     /// Wire indices of the shifted point to evaluate the interpolant at.
     fn wires_shifted_evaluation_point(&self) -> Range<usize> {
-        let start = self.start_intermediates() + D * 2 * self.num_intermediates();
-        start..start + D
+        let start = self.start_intermediates() + 2 * 2 * self.num_intermediates();
+        start..start + 2
     }
 }
 
@@ -163,9 +170,12 @@ impl<F: FieldExt> CustomGateConstrainer<F> for CosetInterpolationGateConstrainer
                 .to_ext_array(),
         );
 
-        let base = goldilocks_extension_chip.two_extension(ctx)?;
-        let domain =
-            goldilocks_extension_chip.exp_power_of_2_extension(ctx, base, self.subgroup_bits)?;
+        let domain = <GoldilocksField as plonky2::field::types::Field>::two_adic_subgroup(
+            self.subgroup_bits,
+        )
+        .iter()
+        .map(|x| Goldilocks::from(x.0))
+        .collect_vec();
 
         let values: Vec<
             crate::snark::chip::goldilocks_extension_algebra_chip::AssignedExtensionAlgebra<_>,
@@ -176,15 +186,17 @@ impl<F: FieldExt> CustomGateConstrainer<F> for CosetInterpolationGateConstrainer
         let weights = &self.barycentric_weights;
 
         let initial_eval = goldilocks_extension_algebra_chip.zero_ext_algebra(ctx)?;
-        let two = goldilocks_extension_chip.two_extension(ctx)?;
-        let initial_prod = goldilocks_extension_algebra_chip.convert_to_ext_algebra(ctx, &two)?;
+        let one = goldilocks_extension_chip.one_extension(ctx)?;
+        let initial_prod = goldilocks_extension_algebra_chip.convert_to_ext_algebra(ctx, &one)?;
 
         let (mut computed_eval, mut computed_prod) = partial_interpolate_ext_algebra_target(
-            builder,
+            &goldilocks_extension_chip,
+            &goldilocks_extension_algebra_chip,
+            ctx,
             &domain[..self.degree],
             &values[..self.degree],
             &weights[..self.degree],
-            shifted_evaluation_point,
+            &shifted_evaluation_point,
             initial_eval,
             initial_prod,
         );
@@ -196,23 +208,25 @@ impl<F: FieldExt> CustomGateConstrainer<F> for CosetInterpolationGateConstrainer
                 self.get_local_ext_algebra(local_wires, self.wires_intermediate_prod(i));
             constraints.extend(
                 goldilocks_extension_algebra_chip
-                    .sub_ext_algebra(ctx, &intermediate_eval, computed_eval)?
+                    .sub_ext_algebra(ctx, &intermediate_eval, &computed_eval)?
                     .to_ext_array(),
             );
             constraints.extend(
                 goldilocks_extension_algebra_chip
-                    .sub_ext_algebra(ctx, &intermediate_prod, computed_prod)?
+                    .sub_ext_algebra(ctx, &intermediate_prod, &computed_prod)?
                     .to_ext_array(),
             );
 
             let start_index = 1 + (self.degree - 1) * (i + 1);
             let end_index = (start_index + self.degree - 1).min(self.num_points());
             (computed_eval, computed_prod) = partial_interpolate_ext_algebra_target(
-                builder,
+                &goldilocks_extension_chip,
+                &goldilocks_extension_algebra_chip,
+                ctx,
                 &domain[start_index..end_index],
                 &values[start_index..end_index],
                 &weights[start_index..end_index],
-                shifted_evaluation_point,
+                &shifted_evaluation_point,
                 intermediate_eval,
                 intermediate_prod,
             );
@@ -222,10 +236,63 @@ impl<F: FieldExt> CustomGateConstrainer<F> for CosetInterpolationGateConstrainer
             self.get_local_ext_algebra(local_wires, self.wires_evaluation_value());
         constraints.extend(
             goldilocks_extension_algebra_chip
-                .sub_ext_algebra(ctx, &evaluation_value, computed_eval)?
+                .sub_ext_algebra(ctx, &evaluation_value, &computed_eval)?
                 .to_ext_array(),
         );
 
         Ok(constraints)
     }
+}
+
+fn partial_interpolate_ext_algebra_target<F: FieldExt>(
+    goldilocks_extension_chip: &GoldilocksExtensionChip<F>,
+    goldilocks_extension_algebra_chip: &GoldilocksExtensionAlgebraChip<F>,
+    ctx: &mut halo2wrong::RegionCtx<'_, F>,
+    domain: &[Goldilocks],
+    values: &[crate::snark::chip::goldilocks_extension_algebra_chip::AssignedExtensionAlgebra<F>],
+    barycentric_weights: &[Goldilocks],
+    point: &crate::snark::chip::goldilocks_extension_algebra_chip::AssignedExtensionAlgebra<F>,
+    initial_eval: crate::snark::chip::goldilocks_extension_algebra_chip::AssignedExtensionAlgebra<
+        F,
+    >,
+    initial_partial_prod: crate::snark::chip::goldilocks_extension_algebra_chip::AssignedExtensionAlgebra<
+        F,
+    >,
+) -> (AssignedExtensionAlgebra<F>, AssignedExtensionAlgebra<F>) {
+    values
+        .iter()
+        .cloned()
+        .zip(domain.iter().cloned())
+        .zip(barycentric_weights.iter().cloned())
+        .fold(
+            (initial_eval, initial_partial_prod),
+            |(eval, partial_prod), ((val, x), weight)| {
+                let extension = goldilocks_extension_chip
+                    .constant_extension(ctx, &[Goldilocks::from(x), Goldilocks::zero()])
+                    .unwrap();
+                let x_target = goldilocks_extension_algebra_chip
+                    .convert_to_ext_algebra(ctx, &extension)
+                    .unwrap();
+                let weight_target = goldilocks_extension_chip
+                    .constant_extension(ctx, &[Goldilocks::from(weight), Goldilocks::zero()])
+                    .unwrap();
+                let term = goldilocks_extension_algebra_chip
+                    .sub_ext_algebra(ctx, &point, &x_target)
+                    .unwrap();
+                let weighted_val = goldilocks_extension_algebra_chip
+                    .scalar_mul_ext_algebra(ctx, &weight_target, &val)
+                    .unwrap();
+                let new_eval = goldilocks_extension_algebra_chip
+                    .mul_ext_algebra(ctx, &eval, &term)
+                    .unwrap();
+                let new_eval = goldilocks_extension_algebra_chip
+                    .mul_add_ext_algebra(ctx, &weighted_val, &partial_prod, &new_eval)
+                    .unwrap();
+                let new_partial_prod = goldilocks_extension_algebra_chip
+                    .mul_ext_algebra(ctx, &partial_prod, &term)
+                    .unwrap();
+
+                (new_eval, new_partial_prod)
+            },
+        )
 }

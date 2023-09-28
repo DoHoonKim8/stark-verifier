@@ -1,4 +1,5 @@
 use std::ops::Range;
+use std::print;
 
 use halo2_proofs::arithmetic::Field;
 use halo2_proofs::plonk::Error;
@@ -227,6 +228,12 @@ impl<F: FieldExt> From<&GateRef<GoldilocksField, 2>> for CustomGateRef<F> {
                     num_chunks: 16,
                 }))
             },
+            "ComparisonGate { num_bits: 10, num_chunks: 5, _phantom: PhantomData<plonky2_field::goldilocks_field::GoldilocksField> }<D=2>" => {
+                Self(Box::new(ComparisonGateContainer {
+                    num_bits: 10,
+                    num_chunks: 5,
+                }))
+            }
             "U32AddManyGate { num_addends: 2, num_ops: 5, _phantom: PhantomData<plonky2_field::goldilocks_field::GoldilocksField> }" => {
                 Self(Box::new(U32AddManyGateConstrainer {
                     num_addends: 2,
@@ -249,7 +256,6 @@ impl<F: FieldExt> From<&GateRef<GoldilocksField, 2>> for CustomGateRef<F> {
                     subgroup_bits: 4,
                     degree: 6,
                     barycentric_weights: vec![
-                        Goldilocks::from(123),
                         Goldilocks::from(17293822565076172801),
                         Goldilocks::from(18374686475376656385),
                         Goldilocks::from(18446744069413535745),
@@ -267,6 +273,12 @@ impl<F: FieldExt> From<&GateRef<GoldilocksField, 2>> for CustomGateRef<F> {
                         Goldilocks::from(68719476720),
                         Goldilocks::from(4294967296),
                     ],
+                }))
+            },
+            "U32AddManyGate { num_addends: 4, num_ops: 5, _phantom: PhantomData<plonky2_field::goldilocks_field::GoldilocksField> }" => {
+                Self(Box::new(U32AddManyGateConstrainer {
+                    num_addends: 4,
+                    num_ops: 5,
                 }))
             }
             s => {

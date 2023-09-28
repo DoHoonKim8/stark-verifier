@@ -114,21 +114,16 @@ impl<F: FieldExt> CustomGateConstrainer<F> for ComparisonGateContainer {
             .cloned()
             .collect_vec();
 
-        let constant = &goldilocks_extension_chip.constant_extension(
+        let chunk_base = &goldilocks_extension_chip.constant_extension(
             ctx,
             &[Goldilocks::from(1 << self.chunk_bits()), Goldilocks::zero()],
         )?;
 
         let first_chunks_combined =
-            goldilocks_extension_chip.reduce_extension(ctx, &constant, &first_chunks)?;
-
-        let constant = goldilocks_extension_chip.constant_extension(
-            ctx,
-            &[Goldilocks::from(1 << self.chunk_bits()), Goldilocks::zero()],
-        )?;
+            goldilocks_extension_chip.reduce_extension(ctx, &chunk_base, &first_chunks)?;
 
         let second_chunks_combined =
-            goldilocks_extension_chip.reduce_extension(ctx, &constant, &second_chunks)?;
+            goldilocks_extension_chip.reduce_extension(ctx, &chunk_base, &second_chunks)?;
 
         constraints.push(goldilocks_extension_chip.sub_extension(
             ctx,
@@ -146,32 +141,28 @@ impl<F: FieldExt> CustomGateConstrainer<F> for ComparisonGateContainer {
 
         let mut most_significant_diff_so_far = goldilocks_extension_chip.zero_extension(ctx)?;
 
+        let one = goldilocks_extension_chip.one_extension(ctx)?;
+
         for i in 0..self.num_chunks {
             // Range-check the chunks to be less than `chunk_size`.
-            let mut first_product = goldilocks_extension_chip.one_extension(ctx)?;
+            let mut first_product = one;
+            let mut second_product = one;
 
             for x in 0..chunk_size {
-                let x_value = goldilocks_extension_chip
+                let x_f = goldilocks_extension_chip
                     .constant_extension(ctx, &[Goldilocks::from(x), Goldilocks::zero()])?;
 
-                let temp =
-                    goldilocks_extension_chip.sub_extension(ctx, &first_chunks[i], &x_value)?;
+                let first_diff =
+                    goldilocks_extension_chip.sub_extension(ctx, &first_chunks[i], &x_f)?;
+
+                let second_diff =
+                    goldilocks_extension_chip.sub_extension(ctx, &second_chunks[i], &x_f)?;
 
                 first_product =
-                    goldilocks_extension_chip.mul_extension(ctx, &first_product, &temp)?;
-            }
-
-            let mut second_product = goldilocks_extension_chip.one_extension(ctx)?;
-
-            for x in 0..chunk_size {
-                let x_value = goldilocks_extension_chip
-                    .constant_extension(ctx, &[Goldilocks::from(x), Goldilocks::zero()])?;
-
-                let temp =
-                    goldilocks_extension_chip.sub_extension(ctx, &second_chunks[i], &x_value)?;
+                    goldilocks_extension_chip.mul_extension(ctx, &first_product, &first_diff)?;
 
                 second_product =
-                    goldilocks_extension_chip.mul_extension(ctx, &second_product, &temp)?;
+                    goldilocks_extension_chip.mul_extension(ctx, &second_product, &second_diff)?;
             }
 
             constraints.push(first_product);
@@ -179,22 +170,20 @@ impl<F: FieldExt> CustomGateConstrainer<F> for ComparisonGateContainer {
 
             let difference = goldilocks_extension_chip.sub_extension(
                 ctx,
-                &first_chunks[i],
                 &second_chunks[i],
+                &first_chunks[i],
             )?;
 
             let equality_dummy = &local_wires[self.wire_equality_dummy(i)];
             let chunks_equal = &local_wires[self.wire_chunks_equal(i)];
 
-            let multiple =
+            let diff_times_equal =
                 goldilocks_extension_chip.mul_extension(ctx, &difference, &equality_dummy)?;
 
-            let one = goldilocks_extension_chip.one_extension(ctx)?;
-
-            let sub = goldilocks_extension_chip.sub_extension(ctx, &one, &chunks_equal)?;
+            let not_equal = goldilocks_extension_chip.sub_extension(ctx, &one, &chunks_equal)?;
 
             // Two constraints to assert that `chunks_equal` is valid.
-            constraints.push(goldilocks_extension_chip.sub_extension(ctx, &multiple, &sub)?);
+            constraints.push(goldilocks_extension_chip.sub_extension(ctx, &diff_times_equal, &not_equal)?);
             constraints.push(goldilocks_extension_chip.mul_extension(
                 ctx,
                 &chunks_equal,
@@ -204,7 +193,7 @@ impl<F: FieldExt> CustomGateConstrainer<F> for ComparisonGateContainer {
             // Update `most_significant_diff_so_far`.
             let intermediate_value = &local_wires[self.wire_intermediate_value(i)];
 
-            let mul = goldilocks_extension_chip.mul_extension(
+            let old_diff = goldilocks_extension_chip.mul_extension(
                 ctx,
                 &chunks_equal,
                 &most_significant_diff_so_far,
@@ -213,17 +202,14 @@ impl<F: FieldExt> CustomGateConstrainer<F> for ComparisonGateContainer {
             constraints.push(goldilocks_extension_chip.sub_extension(
                 ctx,
                 &intermediate_value,
-                &mul,
+                &old_diff,
             )?);
 
-            let one = goldilocks_extension_chip.one_extension(ctx)?;
-
-            let sub = goldilocks_extension_chip.sub_extension(ctx, &one, &chunks_equal)?;
-
-            let mul = goldilocks_extension_chip.mul_extension(ctx, &sub, &difference)?;
+            let not_equal = goldilocks_extension_chip.sub_extension(ctx, &one, &chunks_equal)?;
+            let new_diff = goldilocks_extension_chip.mul_extension(ctx, &not_equal, &difference)?;
 
             most_significant_diff_so_far =
-                goldilocks_extension_chip.add_extension(ctx, &intermediate_value, &mul)?;
+                goldilocks_extension_chip.add_extension(ctx, &intermediate_value, &new_diff)?;
         }
 
         let most_significant_diff = &local_wires[self.wire_most_significant_diff()];
@@ -241,10 +227,10 @@ impl<F: FieldExt> CustomGateConstrainer<F> for ComparisonGateContainer {
         let one = goldilocks_extension_chip.one_extension(ctx)?;
 
         // Range-check the bits.
-        for bit in &most_significant_diff_bits {
-            let sub = goldilocks_extension_chip.sub_extension(ctx, &one, &bit)?;
+        for this_bit in &most_significant_diff_bits {
+            let inverse = goldilocks_extension_chip.sub_extension(ctx, &one, &this_bit)?;
 
-            constraints.push(goldilocks_extension_chip.mul_extension(ctx, &bit, &sub)?);
+            constraints.push(goldilocks_extension_chip.mul_extension(ctx, &this_bit, &inverse)?);
         }
 
         let two = goldilocks_extension_chip.two_extension(ctx)?;
@@ -256,12 +242,12 @@ impl<F: FieldExt> CustomGateConstrainer<F> for ComparisonGateContainer {
             &[Goldilocks::from(1 << self.chunk_bits()), Goldilocks::zero()],
         )?;
 
-        let addition =
+        let sum =
             goldilocks_extension_chip.add_extension(ctx, &two_n, &most_significant_diff)?;
 
         constraints.push(goldilocks_extension_chip.sub_extension(
             ctx,
-            &addition,
+            &sum,
             &bits_combined,
         )?);
 
