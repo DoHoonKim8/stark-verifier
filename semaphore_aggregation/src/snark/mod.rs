@@ -1,7 +1,4 @@
-use plonky2::hash::{
-    hashing::SPONGE_WIDTH,
-    poseidon::{HALF_N_FULL_ROUNDS, N_PARTIAL_ROUNDS},
-};
+use plonky2::hash::poseidon::{HALF_N_FULL_ROUNDS, N_PARTIAL_ROUNDS, SPONGE_WIDTH};
 const T: usize = SPONGE_WIDTH;
 const T_MINUS_ONE: usize = SPONGE_WIDTH - 1;
 const RATE: usize = SPONGE_WIDTH - 4;

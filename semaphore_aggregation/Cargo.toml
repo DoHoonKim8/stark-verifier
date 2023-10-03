@@ -8,7 +8,8 @@ description = "Halo2 verifier for aggregated Plonky2 Semaphore proof"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-plonky2 = { git = "https://github.com/DoHoonKim8/plonky2" }
+plonky2 = { git = "https://github.com/metacraft-labs/plonky2", branch = "stark-verifier" }
+plonky2_u32 = { git = "https://github.com/metacraft-labs/plonky2-u32", branch = "stark-verifier" }
 anyhow = "1.0.56"
 lazy_static = "1.4.0"
 halo2curves = { git = "https://github.com/DoHoonKim8/halo2curves.git" }
@@ -27,3 +28,8 @@ snark-verifier = { git = "https://github.com/privacy-scaling-explorations/snark-
 colored = "2.0.0"
 halo2_kzg_srs = { git = "https://github.com/han0110/halo2-kzg-srs" }
 rayon = "1.5.3"
+log = "0.4.14"
+
+[[bin]]
+name = "test"
+path = "bin/test.rs"

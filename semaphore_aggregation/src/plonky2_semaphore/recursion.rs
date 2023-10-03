@@ -68,7 +68,7 @@ impl AccessSet {
             .chain(signal1.topics.clone().into_iter().flatten().to_owned())
             .collect();
 
-        let proof_target0 = builder.add_virtual_proof_with_pis::<InnerC>(&verifier_data.common);
+        let proof_target0 = builder.add_virtual_proof_with_pis(&verifier_data.common);
         pw.set_proof_with_pis_target(
             &proof_target0,
             &ProofWithPublicInputs {
@@ -76,7 +76,7 @@ impl AccessSet {
                 public_inputs: public_inputs0.clone(),
             },
         );
-        let proof_target1 = builder.add_virtual_proof_with_pis::<InnerC>(&verifier_data.common);
+        let proof_target1 = builder.add_virtual_proof_with_pis(&verifier_data.common);
         pw.set_proof_with_pis_target(
             &proof_target1,
             &ProofWithPublicInputs {
