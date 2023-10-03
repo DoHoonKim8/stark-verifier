@@ -31,19 +31,19 @@ fn main() {
 }
 
 fn get_proof() -> ProofWithPublicInputs<GoldilocksField, PoseidonGoldilocksConfig, 2> {
-    let bytes = fs::read("final_proof").unwrap();
+    let bytes = fs::read("recursive_proof").unwrap();
     let common_data = get_common_data();
     ProofWithPublicInputs::from_bytes(bytes, &common_data).unwrap()
 }
 
 fn get_common_data() -> CommonCircuitData<GoldilocksField, 2> {
-    let bytes: Vec<u8> = fs::read("common_data").unwrap();
+    let bytes: Vec<u8> = fs::read("recursive_common_data").unwrap();
     let gate_serializer = DendrETHGateSerializer;
     CommonCircuitData::from_bytes(bytes, &gate_serializer).unwrap()
 }
 
 fn get_verifier_data() -> VerifierOnlyCircuitData<PoseidonGoldilocksConfig, 2> {
-    let bytes: Vec<u8> = fs::read("verifier_data").unwrap();
+    let bytes: Vec<u8> = fs::read("recursive_verifier_data").unwrap();
 
     VerifierOnlyCircuitData::<PoseidonGoldilocksConfig, 2>::from_bytes(bytes).unwrap()
 }

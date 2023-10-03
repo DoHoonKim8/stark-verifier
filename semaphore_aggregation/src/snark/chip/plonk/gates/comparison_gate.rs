@@ -145,8 +145,8 @@ impl<F: FieldExt> CustomGateConstrainer<F> for ComparisonGateContainer {
 
         for i in 0..self.num_chunks {
             // Range-check the chunks to be less than `chunk_size`.
-            let mut first_product = one;
-            let mut second_product = one;
+            let mut first_product = one.clone();
+            let mut second_product = one.clone();
 
             for x in 0..chunk_size {
                 let x_f = goldilocks_extension_chip
