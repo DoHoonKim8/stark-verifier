@@ -1,9 +1,9 @@
+use crate::snark::context::RegionCtx;
 use core::iter;
-use halo2_proofs::{arithmetic::Field, plonk::Error};
-use halo2curves::{goldilocks::fp::Goldilocks, FieldExt};
-use halo2wrong::RegionCtx;
+use halo2_proofs::{halo2curves::ff::PrimeField, plonk::Error};
 use halo2wrong_maingate::AssignedValue;
 use itertools::Itertools;
+use plonky2::field::{goldilocks_field::GoldilocksField, types::Field};
 
 use crate::snark::{
     chip::goldilocks_extension_chip::GoldilocksExtensionChip,
@@ -14,7 +14,7 @@ use crate::snark::{
     },
 };
 
-impl<F: FieldExt> PlonkVerifierChip<F> {
+impl<F: PrimeField> PlonkVerifierChip<F> {
     pub fn eval_vanishing_poly(
         &self,
         ctx: &mut RegionCtx<'_, F>,
@@ -164,12 +164,12 @@ impl<F: FieldExt> PlonkVerifierChip<F> {
         //        = (x_pow_deg - 1) / (n * (x - 1))
         let one_extension = goldilocks_extension_chip.one_extension(ctx)?;
         let neg_one_extension = goldilocks_extension_chip
-            .constant_extension(ctx, &[-Goldilocks::one(), Goldilocks::zero()])?;
+            .constant_extension(ctx, &[-GoldilocksField::ONE, GoldilocksField::ZERO])?;
         let zero_poly = goldilocks_extension_chip.sub_extension(ctx, &x_pow_n, &one_extension)?;
         let denominator = goldilocks_extension_chip.arithmetic_extension(
             ctx,
-            Goldilocks::from(n as u64),
-            Goldilocks::from(n as u64),
+            GoldilocksField::from_canonical_u64(n as u64),
+            GoldilocksField::from_canonical_u64(n as u64),
             &x,
             &one_extension,
             &neg_one_extension,

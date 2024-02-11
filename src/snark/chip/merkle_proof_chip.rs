@@ -1,13 +1,13 @@
 use std::marker::PhantomData;
 
-use halo2_proofs::plonk::Error;
-use halo2curves::{goldilocks::fp::Goldilocks, FieldExt};
-use halo2wrong::RegionCtx;
+use halo2_proofs::{halo2curves::ff::PrimeField, plonk::Error};
 use halo2wrong_maingate::AssignedValue;
 use itertools::Itertools;
-use poseidon::Spec;
 
-use crate::snark::types::assigned::{AssignedMerkleCapValues, AssignedMerkleProofValues};
+use crate::snark::{
+    context::RegionCtx,
+    types::assigned::{AssignedMerkleCapValues, AssignedMerkleProofValues},
+};
 
 use super::{
     goldilocks_chip::{GoldilocksChip, GoldilocksChipConfig},
@@ -15,20 +15,15 @@ use super::{
     vector_chip::VectorChip,
 };
 
-pub struct MerkleProofChip<F: FieldExt> {
+pub struct MerkleProofChip<F: PrimeField> {
     goldilocks_chip_config: GoldilocksChipConfig<F>,
-    spec: Spec<Goldilocks, 12, 11>,
     _marker: PhantomData<F>,
 }
 
-impl<F: FieldExt> MerkleProofChip<F> {
-    pub fn new(
-        goldilocks_chip_config: &GoldilocksChipConfig<F>,
-        spec: Spec<Goldilocks, 12, 11>,
-    ) -> Self {
+impl<F: PrimeField> MerkleProofChip<F> {
+    pub fn new(goldilocks_chip_config: &GoldilocksChipConfig<F>) -> Self {
         Self {
             goldilocks_chip_config: goldilocks_chip_config.clone(),
-            spec,
             _marker: PhantomData,
         }
     }
@@ -37,8 +32,8 @@ impl<F: FieldExt> MerkleProofChip<F> {
         GoldilocksChip::new(&self.goldilocks_chip_config)
     }
 
-    fn hasher(&self, ctx: &mut RegionCtx<'_, F>) -> Result<HasherChip<F, 12, 11, 8>, Error> {
-        HasherChip::new(ctx, &self.spec, &self.goldilocks_chip_config)
+    fn hasher(&self, ctx: &mut RegionCtx<'_, F>) -> Result<HasherChip<F>, Error> {
+        HasherChip::new(ctx, &self.goldilocks_chip_config)
     }
 
     pub fn verify_merkle_proof_to_cap_with_cap_index(

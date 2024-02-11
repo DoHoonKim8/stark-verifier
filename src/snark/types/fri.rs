@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use halo2curves::FieldExt;
+use halo2_proofs::halo2curves::ff::PrimeField;
 
 use super::{assigned::AssignedExtensionFieldValue, common_data::CommonData};
 
@@ -33,20 +33,20 @@ impl FriPolynomialInfo {
 }
 
 /// A batch of openings at a particular point.
-pub struct FriBatchInfo<F: FieldExt, const D: usize> {
+pub struct FriBatchInfo<F: PrimeField, const D: usize> {
     pub point: AssignedExtensionFieldValue<F, D>,
     pub polynomials: Vec<FriPolynomialInfo>,
 }
 
 /// Describes an instance of a FRI-based batch opening.
-pub struct FriInstanceInfo<F: FieldExt, const D: usize> {
+pub struct FriInstanceInfo<F: PrimeField, const D: usize> {
     /// The oracles involved, not counting oracles created during the commit phase.
     pub oracles: Vec<FriOracleInfo>,
     /// Batches of openings, where each batch is associated with a particular point.
     pub batches: Vec<FriBatchInfo<F, D>>,
 }
 
-impl<F: FieldExt, const D: usize> FriInstanceInfo<F, D> {
+impl<F: PrimeField, const D: usize> FriInstanceInfo<F, D> {
     pub fn new(
         zeta: &AssignedExtensionFieldValue<F, D>,
         zeta_next: &AssignedExtensionFieldValue<F, D>,

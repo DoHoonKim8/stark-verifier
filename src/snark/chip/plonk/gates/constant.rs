@@ -1,7 +1,10 @@
-use halo2curves::FieldExt;
+use halo2_proofs::halo2curves::ff::PrimeField;
 
-use crate::snark::chip::{
-    goldilocks_chip::GoldilocksChipConfig, goldilocks_extension_chip::GoldilocksExtensionChip,
+use crate::snark::{
+    chip::{
+        goldilocks_chip::GoldilocksChipConfig, goldilocks_extension_chip::GoldilocksExtensionChip,
+    },
+    context::RegionCtx,
 };
 
 use super::CustomGateConstrainer;
@@ -12,10 +15,10 @@ pub struct ConstantGateConstrainer {
     pub(crate) num_consts: usize,
 }
 
-impl<F: FieldExt> CustomGateConstrainer<F> for ConstantGateConstrainer {
+impl<F: PrimeField> CustomGateConstrainer<F> for ConstantGateConstrainer {
     fn eval_unfiltered_constraint(
         &self,
-        ctx: &mut halo2wrong::RegionCtx<'_, F>,
+        ctx: &mut RegionCtx<'_, F>,
         main_gate_config: &GoldilocksChipConfig<F>,
         local_constants: &[crate::snark::types::assigned::AssignedExtensionFieldValue<F, 2>],
         local_wires: &[crate::snark::types::assigned::AssignedExtensionFieldValue<F, 2>],
@@ -34,16 +37,16 @@ impl<F: FieldExt> CustomGateConstrainer<F> for ConstantGateConstrainer {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::ConstantGateConstrainer;
-//     use crate::snark::chip::plonk::gates::gate_test::test_custom_gate;
-//     use plonky2::gates::constant::ConstantGate;
+#[cfg(test)]
+mod tests {
+    use super::ConstantGateConstrainer;
+    use crate::snark::chip::plonk::gates::gate_test::test_custom_gate;
+    use plonky2::gates::constant::ConstantGate;
 
-//     #[test]
-//     fn test_constant_gate() {
-//         let plonky2_gate = ConstantGate::new(2);
-//         // let halo2_gate = ConstantGateConstrainer { num_consts: 2 };
-//         // test_custom_gate(plonky2_gate, halo2_gate, 17);
-//     }
-// }
+    #[test]
+    fn test_constant_gate() {
+        let plonky2_gate = ConstantGate::new(2);
+        let halo2_gate = ConstantGateConstrainer { num_consts: 2 };
+        test_custom_gate(plonky2_gate, halo2_gate, 17);
+    }
+}

@@ -1,10 +1,9 @@
 use std::ops::Range;
 
-use halo2_proofs::arithmetic::Field;
+use crate::snark::context::RegionCtx;
+use halo2_proofs::halo2curves::ff::PrimeField;
 use halo2_proofs::plonk::Error;
-use halo2curves::goldilocks::fp::Goldilocks;
-use halo2curves::FieldExt;
-use halo2wrong::RegionCtx;
+use plonky2::field::types::Field;
 use plonky2::{field::goldilocks_field::GoldilocksField, gates::gate::GateRef};
 
 use self::arithmetic_extension::ArithmeticExtensionGateConstrainer;
@@ -46,7 +45,9 @@ pub mod reducing_extension;
 pub mod gate_test;
 
 /// Evaluate custom gate constraints in `plonk_zeta` inside maingate.
-pub trait CustomGateConstrainer<F: FieldExt>: CustomGateConstrainerClone<F> + Send + Sync {
+pub trait CustomGateConstrainer<F: PrimeField>:
+    CustomGateConstrainerClone<F> + Send + Sync
+{
     fn get_local_ext_algebra(
         &self,
         local_wires: &[AssignedExtensionFieldValue<F, 2>],
@@ -104,8 +105,13 @@ pub trait CustomGateConstrainer<F: FieldExt>: CustomGateConstrainerClone<F> + Se
             .filter(|&i| i != row)
             .chain((num_selectors > 1).then_some(UNUSED_SELECTOR))
             .map(|i| {
-                let k = goldilocks_extension_chip
-                    .constant_extension(ctx, &[Goldilocks::from(i as u64), Goldilocks::zero()])?;
+                let k = goldilocks_extension_chip.constant_extension(
+                    ctx,
+                    &[
+                        GoldilocksField::from_canonical_u64(i as u64),
+                        GoldilocksField::ZERO,
+                    ],
+                )?;
                 goldilocks_extension_chip.sub_extension(ctx, &k, &f_zeta)
             })
             .collect::<Result<Vec<AssignedExtensionFieldValue<F, 2>>, Error>>()?;
@@ -127,9 +133,9 @@ pub trait CustomGateConstrainer<F: FieldExt>: CustomGateConstrainerClone<F> + Se
 }
 
 #[derive(Clone)]
-pub struct CustomGateRef<F: FieldExt>(pub Box<dyn CustomGateConstrainer<F>>);
+pub struct CustomGateRef<F: PrimeField>(pub Box<dyn CustomGateConstrainer<F>>);
 
-impl<F: FieldExt> From<&GateRef<GoldilocksField, 2>> for CustomGateRef<F> {
+impl<F: PrimeField> From<&GateRef<GoldilocksField, 2>> for CustomGateRef<F> {
     fn from(value: &GateRef<GoldilocksField, 2>) -> Self {
         match value.0.id().as_str().trim_end() {
             "ArithmeticGate { num_ops: 20 }" => Self(Box::new(ArithmeticGateConstrainer {
@@ -197,11 +203,11 @@ impl<F: FieldExt> From<&GateRef<GoldilocksField, 2>> for CustomGateRef<F> {
 }
 
 /// This trait is for cloning the boxed trait object.
-pub trait CustomGateConstrainerClone<F: FieldExt> {
+pub trait CustomGateConstrainerClone<F: PrimeField> {
     fn clone_box(&self) -> Box<dyn CustomGateConstrainer<F>>;
 }
 
-impl<T, F: FieldExt> CustomGateConstrainerClone<F> for T
+impl<T, F: PrimeField> CustomGateConstrainerClone<F> for T
 where
     T: CustomGateConstrainer<F> + Clone + 'static,
 {
@@ -210,7 +216,7 @@ where
     }
 }
 
-impl<F: FieldExt> Clone for Box<dyn CustomGateConstrainer<F>> {
+impl<F: PrimeField> Clone for Box<dyn CustomGateConstrainer<F>> {
     fn clone(&self) -> Self {
         self.clone_box()
     }
