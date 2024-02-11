@@ -19,7 +19,7 @@ use halo2_solidity_verifier::Evm;
 use halo2_solidity_verifier::SolidityGenerator;
 use plonky2::field::goldilocks_field::GoldilocksField;
 
-const DEGREE: u32 = 19;
+const DEGREE: u32 = 20;
 
 fn report_elapsed(now: Instant) {
     println!(

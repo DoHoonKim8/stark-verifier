@@ -274,8 +274,12 @@ mod tests {
             access_set::AccessSet,
             recursion::report_elapsed,
             signal::{Digest, F},
+            wrapper::WrapperCircuit,
         },
-        snark::verifier_api::verify_inside_snark,
+        snark::{
+            bn245_poseidon::plonky2_config::standard_stark_verifier_config,
+            verifier_api::verify_inside_snark,
+        },
     };
 
     fn semaphore_aggregation(
@@ -324,10 +328,15 @@ mod tests {
                 .chain(final_signal.topics.clone().into_iter().flatten().to_owned())
                 .collect(),
         };
+
+        // Perform another recursive proof to change PoseidonGoldilocksConfig to Bn254PoseidonGoldilocksConfig
+        let wrapper_circuit =
+            WrapperCircuit::new(standard_stark_verifier_config(), &verifier_circuit_data);
+        let wrapped_proof = wrapper_circuit.prove(&proof).unwrap();
         verify_inside_snark((
-            proof,
-            verifier_circuit_data.verifier_only.clone(),
-            verifier_circuit_data.common.clone(),
+            wrapped_proof,
+            wrapper_circuit.data.verifier_only.clone(),
+            wrapper_circuit.data.common.clone(),
         ));
 
         Ok(())

@@ -15,10 +15,12 @@ use plonky2::plonk::circuit_data::{CircuitConfig, VerifierCircuitData};
 use plonky2::plonk::config::Hasher;
 use plonky2::plonk::proof::ProofWithPublicInputs;
 
+use crate::snark::bn245_poseidon::plonky2_config::standard_stark_verifier_config;
 use crate::snark::verifier_api::verify_inside_snark;
 
 use super::report_elapsed;
 use super::signal::{Digest, Signal, C, F};
+use super::wrapper::WrapperCircuit;
 
 pub struct AccessSet(pub MerkleTree<F, PoseidonHash>);
 
@@ -38,19 +40,18 @@ impl AccessSet {
             .chain(signal.topics.into_iter().flatten().to_owned())
             .collect();
 
-        // verifier_data.verify(ProofWithPublicInputs {
-        //     proof: signal.proof,
-        //     public_inputs,
-        // })
-        let proof = (
-            ProofWithPublicInputs {
-                proof: signal.proof,
-                public_inputs,
-            },
-            verifier_data.verifier_only.clone(),
-            verifier_data.common.clone(),
-        );
-        verify_inside_snark(proof);
+        let proof = ProofWithPublicInputs {
+            proof: signal.proof,
+            public_inputs,
+        };
+        // Perform another recursive proof to change PoseidonGoldilocksConfig to Bn254PoseidonGoldilocksConfig
+        let wrapper_circuit = WrapperCircuit::new(standard_stark_verifier_config(), &verifier_data);
+        let wrapped_proof = wrapper_circuit.prove(&proof).unwrap();
+        verify_inside_snark((
+            wrapped_proof,
+            wrapper_circuit.data.verifier_only.clone(),
+            wrapper_circuit.data.common.clone(),
+        ));
         Ok(())
     }
 
@@ -201,7 +202,12 @@ mod tests {
             let access_set = AccessSet(MerkleTree::new(public_keys, 0));
 
             let i = 12;
-            println!("{}", format!("Testing membership proof in a group size 2^{pow}").white().bold());
+            println!(
+                "{}",
+                format!("Testing membership proof in a group size 2^{pow}")
+                    .white()
+                    .bold()
+            );
             access_set.test_membership_proof(private_keys[i], i)?;
         }
         Ok(())
