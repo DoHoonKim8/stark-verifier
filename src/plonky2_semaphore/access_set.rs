@@ -15,8 +15,8 @@ use plonky2::plonk::circuit_data::{CircuitConfig, VerifierCircuitData};
 use plonky2::plonk::config::Hasher;
 use plonky2::plonk::proof::ProofWithPublicInputs;
 
-use crate::snark::bn245_poseidon::plonky2_config::standard_stark_verifier_config;
-use crate::snark::verifier_api::verify_inside_snark;
+use crate::plonky2_verifier::bn245_poseidon::plonky2_config::standard_stark_verifier_config;
+use crate::plonky2_verifier::verifier_api::verify_inside_snark;
 
 use super::report_elapsed;
 use super::signal::{Digest, Signal, C, F};
