@@ -61,7 +61,7 @@ mod tests {
     fn generate_proof_tuple() -> ProofTuple<F, Bn254PoseidonGoldilocksConfig, D> {
         let (inner_target, inner_data) = {
             let hash_const =
-                hash_n_to_hash_no_pad::<F, PoseidonPermutation<F>>(&[F::from_canonical_u64(42)]);
+                hash_n_to_hash_no_pad::<F, PoseidonPermutation>(&[F::from_canonical_u64(42)]);
             let mut builder = CircuitBuilder::<F, D>::new(standard_inner_stark_verifier_config());
             let target = builder.add_virtual_target();
             let expected_hash = builder.constant_hash(hash_const);
@@ -73,7 +73,8 @@ mod tests {
         };
 
         let mut builder = CircuitBuilder::<F, D>::new(standard_stark_verifier_config());
-        let proof_t = builder.add_virtual_proof_with_pis(&inner_data.common);
+        let proof_t =
+            builder.add_virtual_proof_with_pis::<PoseidonGoldilocksConfig>(&inner_data.common);
         let vd = builder.constant_verifier_data(&inner_data.verifier_only);
         builder.verify_proof::<PoseidonGoldilocksConfig>(&proof_t, &vd, &inner_data.common);
         builder.register_public_inputs(&proof_t.public_inputs);

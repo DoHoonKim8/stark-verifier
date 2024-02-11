@@ -2,7 +2,7 @@ use halo2_proofs::{halo2curves::ff::PrimeField, plonk::Error};
 use halo2wrong_maingate::{AssignedValue, Term};
 use plonky2::{
     field::{goldilocks_field::GoldilocksField, types::Field},
-    hash::keccak::SPONGE_WIDTH,
+    hash::hashing::SPONGE_WIDTH,
 };
 
 use crate::snark::context::RegionCtx;

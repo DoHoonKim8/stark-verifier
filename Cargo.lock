@@ -10,12 +10,23 @@ checksum = "f26201604c87b1e01bd3d98f8d5d9a8fcbb815e8cedb41ffccbeb4bf593a35fe"
 
 [[package]]
 name = "ahash"
+version = "0.7.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "891477e0c6a8957309ee5c45a6368af3ae14bb510732d2684ffa19af310920f9"
+dependencies = [
+ "const-random",
+ "getrandom",
+ "once_cell",
+ "version_check",
+]
+
+[[package]]
+name = "ahash"
 version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77c3a9648d43b9cd48db467b3f87fdd6e146bcc88ab0180006cef2179fe11d01"
 dependencies = [
  "cfg-if",
- "const-random",
  "once_cell",
  "version_check",
  "zerocopy",
@@ -990,10 +1001,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "190092ea657667030ac6a35e305e62fc4dd69fd98ac98631e5d3a2b1575a12b5"
 dependencies = [
  "cfg-if",
- "js-sys",
  "libc",
  "wasi",
- "wasm-bindgen",
 ]
 
 [[package]]
@@ -1081,14 +1090,23 @@ dependencies = [
 
 [[package]]
 name = "hashbrown"
+version = "0.12.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
+dependencies = [
+ "ahash 0.7.8",
+ "rayon",
+ "serde",
+]
+
+[[package]]
+name = "hashbrown"
 version = "0.14.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "290f1a1d9242c78d09ce40a5e87e7554ee637af1351968159f4952f028f75604"
 dependencies = [
- "ahash",
+ "ahash 0.8.7",
  "allocator-api2",
- "rayon",
- "serde",
 ]
 
 [[package]]
@@ -1182,7 +1200,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "824b2ae422412366ba479e8111fd301f7b5faece8149317bb81925979a53f520"
 dependencies = [
  "equivalent",
- "hashbrown",
+ "hashbrown 0.14.3",
 ]
 
 [[package]]
@@ -1314,6 +1332,14 @@ dependencies = [
  "num-traits",
  "rand",
  "subtle",
+]
+
+[[package]]
+name = "maybe_rayon"
+version = "0.1.0"
+source = "git+https://github.com/DoHoonKim8/plonky2#72229c47844f9a1fccbc695a31ceef66fc2ca504"
+dependencies = [
+ "rayon",
 ]
 
 [[package]]
@@ -1545,35 +1571,33 @@ checksum = "2900ede94e305130c13ddd391e0ab7cbaeb783945ae07a279c268cb05109c6cb"
 
 [[package]]
 name = "plonky2"
-version = "0.1.4"
-source = "git+https://github.com/kbizikav/plonky2#0784d4c6c8f5a9193a66fb73dd784adef365a055"
+version = "0.1.0"
+source = "git+https://github.com/DoHoonKim8/plonky2#72229c47844f9a1fccbc695a31ceef66fc2ca504"
 dependencies = [
- "ahash",
+ "ahash 0.7.8",
  "anyhow",
- "getrandom",
- "hashbrown",
- "itertools 0.11.0",
+ "hashbrown 0.12.3",
+ "itertools 0.10.5",
  "keccak-hash",
  "log",
+ "maybe_rayon",
  "num",
  "plonky2_field",
- "plonky2_maybe_rayon",
  "plonky2_util",
  "rand",
  "rand_chacha",
  "serde",
- "serde_json",
  "static_assertions",
  "unroll",
 ]
 
 [[package]]
 name = "plonky2_field"
-version = "0.1.1"
-source = "git+https://github.com/kbizikav/plonky2#0784d4c6c8f5a9193a66fb73dd784adef365a055"
+version = "0.1.0"
+source = "git+https://github.com/DoHoonKim8/plonky2#72229c47844f9a1fccbc695a31ceef66fc2ca504"
 dependencies = [
  "anyhow",
- "itertools 0.11.0",
+ "itertools 0.10.5",
  "num",
  "plonky2_util",
  "rand",
@@ -1583,17 +1607,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "plonky2_maybe_rayon"
-version = "0.1.1"
-source = "git+https://github.com/kbizikav/plonky2#0784d4c6c8f5a9193a66fb73dd784adef365a055"
-dependencies = [
- "rayon",
-]
-
-[[package]]
 name = "plonky2_util"
-version = "0.1.1"
-source = "git+https://github.com/kbizikav/plonky2#0784d4c6c8f5a9193a66fb73dd784adef365a055"
+version = "0.1.0"
+source = "git+https://github.com/DoHoonKim8/plonky2#72229c47844f9a1fccbc695a31ceef66fc2ca504"
 
 [[package]]
 name = "plotters"
@@ -1886,7 +1902,7 @@ dependencies = [
  "bitflags 2.4.2",
  "bitvec",
  "enumn",
- "hashbrown",
+ "hashbrown 0.14.3",
  "hex",
 ]
 

@@ -184,7 +184,6 @@ impl Circuit<Fr> for Verifier {
                     &assigned_vk,
                     &self.common_data,
                 )?;
-                dbg!(ctx.offset());
                 Ok(assigned_proof_with_pis)
             },
         )?;

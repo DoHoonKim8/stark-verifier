@@ -8,7 +8,7 @@ description = "Halo2 verifier for aggregated Plonky2 Semaphore proof"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-plonky2={git="https://github.com/kbizikav/plonky2"}
+plonky2={ git = "https://github.com/DoHoonKim8/plonky2" }
 anyhow = "1.0.56"   
 lazy_static = "1.4.0"
 halo2_proofs = { git = "https://github.com/privacy-scaling-explorations/halo2.git", features = ["dev-graph"], tag = "v2023_04_20" }

@@ -6,8 +6,8 @@ use plonky2::{
     fri::{reduction_strategies::FriReductionStrategy, FriConfig},
     hash::{
         hash_types::HashOut,
-        hashing::{compress, hash_n_to_hash_no_pad, PlonkyPermutation},
-        poseidon::{PoseidonHash, SPONGE_RATE, SPONGE_WIDTH},
+        hashing::{compress, hash_n_to_hash_no_pad, PlonkyPermutation, SPONGE_WIDTH},
+        poseidon::PoseidonHash,
     },
     plonk::{
         circuit_data::CircuitConfig,
@@ -21,15 +21,13 @@ use super::{
 };
 
 #[derive(Copy, Clone, Default, Debug, PartialEq)]
-pub struct Bn254PoseidonPermutation<T> {
-    state: [T; SPONGE_WIDTH],
+pub struct Bn254PoseidonPermutation {
+    state: [GoldilocksField; SPONGE_WIDTH],
 }
 
-impl<T: Eq> Eq for Bn254PoseidonPermutation<T> {}
-
-impl<T> AsRef<[T]> for Bn254PoseidonPermutation<T> {
-    fn as_ref(&self) -> &[T] {
-        &self.state
+impl Bn254PoseidonPermutation {
+    pub fn new(state: [GoldilocksField; SPONGE_WIDTH]) -> Self {
+        Self { state }
     }
 }
 
@@ -37,8 +35,8 @@ trait Permuter: Sized {
     fn permute(input: [Self; SPONGE_WIDTH]) -> [Self; SPONGE_WIDTH];
 }
 
-impl Permuter for GoldilocksField {
-    fn permute(input: [Self; SPONGE_WIDTH]) -> [Self; SPONGE_WIDTH] {
+impl PlonkyPermutation<GoldilocksField> for Bn254PoseidonPermutation {
+    fn permute(input: [GoldilocksField; SPONGE_WIDTH]) -> [GoldilocksField; SPONGE_WIDTH] {
         let mut encoded_state = input
             .chunks(3)
             .map(|x| encode_fe(x.try_into().unwrap()))
@@ -52,51 +50,12 @@ impl Permuter for GoldilocksField {
     }
 }
 
-impl<T: Copy + Debug + Default + Eq + Permuter + Send + Sync> PlonkyPermutation<T>
-    for Bn254PoseidonPermutation<T>
-{
-    const RATE: usize = SPONGE_RATE;
-    const WIDTH: usize = SPONGE_WIDTH;
-
-    fn new<I: IntoIterator<Item = T>>(elts: I) -> Self {
-        let mut perm = Self {
-            state: [T::default(); SPONGE_WIDTH],
-        };
-        perm.set_from_iter(elts, 0);
-        perm
-    }
-
-    fn set_elt(&mut self, elt: T, idx: usize) {
-        self.state[idx] = elt;
-    }
-
-    fn set_from_slice(&mut self, elts: &[T], start_idx: usize) {
-        let begin = start_idx;
-        let end = start_idx + elts.len();
-        self.state[begin..end].copy_from_slice(elts);
-    }
-
-    fn set_from_iter<I: IntoIterator<Item = T>>(&mut self, elts: I, start_idx: usize) {
-        for (s, e) in self.state[start_idx..].iter_mut().zip(elts) {
-            *s = e;
-        }
-    }
-
-    fn permute(&mut self) {
-        self.state = T::permute(self.state);
-    }
-
-    fn squeeze(&self) -> &[T] {
-        &self.state[..Self::RATE]
-    }
-}
-
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct Bn254PoseidonHash;
 impl Hasher<GoldilocksField> for Bn254PoseidonHash {
     const HASH_SIZE: usize = 4 * 8;
     type Hash = HashOut<GoldilocksField>;
-    type Permutation = Bn254PoseidonPermutation<GoldilocksField>;
+    type Permutation = Bn254PoseidonPermutation;
 
     fn hash_no_pad(input: &[GoldilocksField]) -> Self::Hash {
         hash_n_to_hash_no_pad::<GoldilocksField, Self::Permutation>(input)
@@ -133,7 +92,6 @@ pub fn standard_inner_stark_verifier_config() -> CircuitConfig {
 pub fn standard_stark_verifier_config() -> CircuitConfig {
     let inner_config = standard_inner_stark_verifier_config();
     CircuitConfig {
-        use_interpolation_gate: false,
         fri_config: FriConfig {
             rate_bits: 3,
             cap_height: 0,

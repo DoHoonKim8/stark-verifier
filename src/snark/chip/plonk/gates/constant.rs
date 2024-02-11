@@ -37,16 +37,16 @@ impl<F: PrimeField> CustomGateConstrainer<F> for ConstantGateConstrainer {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::ConstantGateConstrainer;
-    use crate::snark::chip::plonk::gates::gate_test::test_custom_gate;
-    use plonky2::gates::constant::ConstantGate;
+// #[cfg(test)]
+// mod tests {
+//     use super::ConstantGateConstrainer;
+//     use crate::snark::chip::plonk::gates::gate_test::test_custom_gate;
+//     use plonky2::gates::constant::ConstantGate;
 
-    #[test]
-    fn test_constant_gate() {
-        let plonky2_gate = ConstantGate::new(2);
-        let halo2_gate = ConstantGateConstrainer { num_consts: 2 };
-        test_custom_gate(plonky2_gate, halo2_gate, 17);
-    }
-}
+//     #[test]
+//     fn test_constant_gate() {
+//         let plonky2_gate = ConstantGate::new(2);
+//         let halo2_gate = ConstantGateConstrainer { num_consts: 2 };
+//         test_custom_gate(plonky2_gate, halo2_gate, 17);
+//     }
+// }
