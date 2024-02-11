@@ -54,7 +54,7 @@ pub fn test_verify_on_contract(k: u32, circuit: &(impl Circuit<Fr> + Clone), ins
     println!("Output: {:?}", output);
 }
 
-fn create_proof_checked(
+pub fn create_proof_checked(
     params: &ParamsKZG<Bn256>,
     pk: &ProvingKey<G1Affine>,
     circuit: impl Circuit<Fr>,

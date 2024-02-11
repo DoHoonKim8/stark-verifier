@@ -1,15 +1,34 @@
+use std::time::Instant;
+
 use super::bn245_poseidon::plonky2_config::Bn254PoseidonGoldilocksConfig;
 use super::types::{
     common_data::CommonData, proof::ProofValues, verification_key::VerificationKeyValues,
 };
 use super::verifier_circuit::{ProofTuple, Verifier};
-use crate::snark::chip::native_chip::test_utils::test_verify_on_contract;
+use crate::snark::chip::native_chip::test_utils::create_proof_checked;
 use crate::snark::chip::native_chip::utils::goldilocks_to_fe;
+use colored::Colorize;
 use halo2_proofs::dev::MockProver;
-use halo2_proofs::halo2curves::bn256::Fr;
+use halo2_proofs::halo2curves::bn256::{Bn256, Fr};
+use halo2_proofs::plonk::{keygen_pk, keygen_vk};
+use halo2_proofs::poly::kzg::commitment::ParamsKZG;
+use halo2_solidity_verifier::compile_solidity;
+use halo2_solidity_verifier::encode_calldata;
+use halo2_solidity_verifier::BatchOpenScheme::Bdfg21;
+use halo2_solidity_verifier::Evm;
+use halo2_solidity_verifier::SolidityGenerator;
 use plonky2::field::goldilocks_field::GoldilocksField;
 
 const DEGREE: u32 = 19;
+
+fn report_elapsed(now: Instant) {
+    println!(
+        "{}",
+        format!("Took {} milliseconds", now.elapsed().as_millis())
+            .blue()
+            .bold()
+    );
+}
 
 /// Public API for generating Halo2 proof for Plonky2 verifier circuit
 /// feed Plonky2 proof, `VerifierOnlyCircuitData`, `CommonCircuitData`
@@ -29,10 +48,49 @@ pub fn verify_inside_snark_mock(
     let vk = VerificationKeyValues::from(vd.clone());
     let common_data = CommonData::from(cd);
     let verifier_circuit = Verifier::new(proof, instances.clone(), vk, common_data);
-    let _prover = MockProver::run(DEGREE, &verifier_circuit, vec![instances.clone()]).unwrap();
-    _prover.assert_satisfied();
-    println!("Mock prover satisfied");
-    test_verify_on_contract(DEGREE, &verifier_circuit, &instances);
+    let prover = MockProver::run(DEGREE, &verifier_circuit, vec![instances.clone()]).unwrap();
+    prover.assert_satisfied();
+}
+
+/// Public API for generating Halo2 proof for Plonky2 verifier circuit
+/// feed Plonky2 proof, `VerifierOnlyCircuitData`, `CommonCircuitData`
+/// This runs real prover and generates valid SNARK proof, generates EVM verifier and runs the verifier
+pub fn verify_inside_snark(proof: ProofTuple<GoldilocksField, Bn254PoseidonGoldilocksConfig, 2>) {
+    let (proof_with_public_inputs, vd, cd) = proof;
+    let proof = ProofValues::<Fr, 2>::from(proof_with_public_inputs.proof);
+    let instances = proof_with_public_inputs
+        .public_inputs
+        .iter()
+        .map(|e| goldilocks_to_fe(*e))
+        .collect::<Vec<Fr>>();
+    let vk = VerificationKeyValues::from(vd.clone());
+    let common_data = CommonData::from(cd);
+    // runs mock prover
+    let circuit = Verifier::new(proof, instances.clone(), vk, common_data);
+    let mock_prover = MockProver::run(DEGREE, &circuit, vec![instances.clone()]).unwrap();
+    mock_prover.assert_satisfied();
+    println!("{}", "Mock prover passes".white().bold());
+    // generates halo2 solidity verifier
+    let mut rng = rand::thread_rng();
+    let param = ParamsKZG::<Bn256>::setup(DEGREE, &mut rng);
+    let vk = keygen_vk(&param, &circuit).unwrap();
+    let pk = keygen_pk(&param, vk.clone(), &circuit).unwrap();
+    let generator = SolidityGenerator::new(&param, &vk, Bdfg21, instances.len());
+    let (verifier_solidity, vk_solidity) = generator.render_separately().unwrap();
+    let mut evm = Evm::default();
+    let verifier_creation_code = compile_solidity(&verifier_solidity);
+    let verifier_address = evm.create(verifier_creation_code);
+    let vk_creation_code = compile_solidity(&vk_solidity);
+    let vk_address = evm.create(vk_creation_code);
+    // generates SNARK proof and runs EVM verifier
+    println!("{}", "Starting finalization phase".red().bold());
+    let now = Instant::now();
+    let proof = create_proof_checked(&param, &pk, circuit.clone(), &instances, &mut rng);
+    println!("{}", "SNARK proof generated successfully!".white().bold());
+    report_elapsed(now);
+    let calldata = encode_calldata(Some(vk_address.into()), &proof, &instances);
+    let (gas_cost, _output) = evm.call(verifier_address, calldata);
+    println!("Gas cost: {}", gas_cost);
 }
 
 #[cfg(test)]
