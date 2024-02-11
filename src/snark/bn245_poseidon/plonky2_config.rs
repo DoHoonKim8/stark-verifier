@@ -131,15 +131,16 @@ pub fn standard_inner_stark_verifier_config() -> CircuitConfig {
 
 // Use this config for the outer circuit.
 pub fn standard_stark_verifier_config() -> CircuitConfig {
+    let inner_config = standard_inner_stark_verifier_config();
     CircuitConfig {
         use_interpolation_gate: false,
         fri_config: FriConfig {
             rate_bits: 3,
             cap_height: 0,
             proof_of_work_bits: 16,
-            reduction_strategy: FriReductionStrategy::ConstantArityBits(4, 5),
+            reduction_strategy: FriReductionStrategy::ConstantArityBits(1, 5),
             num_query_rounds: 28,
         },
-        ..CircuitConfig::standard_recursion_config()
+        ..inner_config
     }
 }
