@@ -2,10 +2,12 @@ use halo2_proofs::{arithmetic::Field, halo2curves::bn256::Fr};
 use halo2wrong_maingate::fe_to_big;
 use plonky2::field::{
     goldilocks_field::GoldilocksField,
-    types::{Field as Plonky2Field, PrimeField64},
+    types::{Field64, PrimeField64},
 };
 
-use crate::snark::chip::native_chip::{arithmetic_chip::GOLDILOCKS_MODULUS, utils::goldilocks_decompose};
+use crate::snark::chip::native_chip::{
+    arithmetic_chip::GOLDILOCKS_MODULUS, utils::goldilocks_decompose,
+};
 
 use super::constants::{
     MDS_MATRIX_FR, ROUND_CONSTANTS_FR, R_F_BN254_POSEIDON, R_P_BN254_POSEIDON, T_BN254_POSEIDON,

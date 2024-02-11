@@ -2,7 +2,10 @@ use crate::snark::context::RegionCtx;
 use halo2_proofs::{halo2curves::ff::PrimeField, plonk::Error};
 use plonky2::{
     field::{goldilocks_field::GoldilocksField, types::Field},
-    hash::poseidon::{HALF_N_FULL_ROUNDS, N_PARTIAL_ROUNDS, SPONGE_WIDTH},
+    hash::{
+        hashing::SPONGE_WIDTH,
+        poseidon::{HALF_N_FULL_ROUNDS, N_PARTIAL_ROUNDS},
+    },
 };
 
 use crate::snark::{

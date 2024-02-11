@@ -3,7 +3,7 @@ use halo2_proofs::{
     halo2curves::ff::PrimeField,
     plonk::{ConstraintSystem, Error},
 };
-use plonky2::hash::keccak::SPONGE_WIDTH;
+use plonky2::hash::hashing::SPONGE_WIDTH;
 
 use crate::snark::{bn245_poseidon::constants::T_BN254_POSEIDON, context::RegionCtx};
 

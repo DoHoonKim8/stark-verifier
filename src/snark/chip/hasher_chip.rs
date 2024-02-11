@@ -2,14 +2,14 @@ use halo2_proofs::{halo2curves::ff::PrimeField, plonk::Error};
 use halo2wrong_maingate::AssignedValue;
 use plonky2::{
     field::{goldilocks_field::GoldilocksField, types::Field},
-    hash::{keccak::SPONGE_RATE, poseidon::SPONGE_WIDTH},
+    hash::hashing::SPONGE_WIDTH,
 };
 
 use crate::snark::context::RegionCtx;
 
 use super::goldilocks_chip::{GoldilocksChip, GoldilocksChipConfig};
 
-const RATE: usize = SPONGE_RATE;
+const RATE: usize = 8;
 
 /// `AssignedState` is composed of `T` sized assigned values
 #[derive(Debug, Clone)]
@@ -202,7 +202,7 @@ mod tests {
     #[derive(Clone, Default)]
     pub struct TestCircuit {
         input: [GoldilocksField; 12],
-        expected_output: [GoldilocksField; 8],
+        expected_output: [GoldilocksField; 12],
     }
 
     impl Circuit<Fr> for TestCircuit {
@@ -262,9 +262,7 @@ mod tests {
     #[test]
     fn test_hasher_chip_mock() {
         let input = [(); 12].map(|_| GoldilocksField::rand());
-        let mut permutation = Bn254PoseidonPermutation::<GoldilocksField>::new(input);
-        permutation.permute();
-        let expected_output = permutation.squeeze();
+        let expected_output = Bn254PoseidonPermutation::permute(input);
 
         const DEGREE: u32 = 17;
         let circuit = TestCircuit {
