@@ -276,7 +276,7 @@ mod tests {
             signal::{Digest, F},
             wrapper::WrapperCircuit,
         },
-        snark::{
+        plonky2_verifier::{
             bn245_poseidon::plonky2_config::standard_stark_verifier_config,
             verifier_api::verify_inside_snark,
         },

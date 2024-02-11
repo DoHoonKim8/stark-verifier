@@ -1,2 +1,2 @@
 pub mod plonky2_semaphore;
-pub mod snark;
+pub mod plonky2_verifier;
