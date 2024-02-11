@@ -1,6 +1,5 @@
-use halo2_proofs::plonk::Error;
-use halo2curves::FieldExt;
-use halo2wrong::RegionCtx;
+use crate::snark::context::RegionCtx;
+use halo2_proofs::{halo2curves::ff::PrimeField, plonk::Error};
 
 use crate::snark::{
     chip::{
@@ -35,7 +34,7 @@ impl ArithmeticGateConstrainer {
     }
 }
 
-impl<F: FieldExt> CustomGateConstrainer<F> for ArithmeticGateConstrainer {
+impl<F: PrimeField> CustomGateConstrainer<F> for ArithmeticGateConstrainer {
     fn eval_unfiltered_constraint(
         &self,
         ctx: &mut RegionCtx<'_, F>,
@@ -55,9 +54,10 @@ impl<F: FieldExt> CustomGateConstrainer<F> for ArithmeticGateConstrainer {
             let addend = &local_wires[Self::wires_ith_addend(i)];
             let output = &local_wires[Self::wires_ith_output(i)];
 
-            let term1 = goldilocks_extension_chip.mul(ctx, multiplicand_0, multiplicand_1)?;
-            let term1 = goldilocks_extension_chip.mul(ctx, &term1, const_0)?;
-            let term2 = goldilocks_extension_chip.mul(ctx, addend, const_1)?;
+            let term1 =
+                goldilocks_extension_chip.mul_extension(ctx, multiplicand_0, multiplicand_1)?;
+            let term1 = goldilocks_extension_chip.mul_extension(ctx, &term1, const_0)?;
+            let term2 = goldilocks_extension_chip.mul_extension(ctx, addend, const_1)?;
             let computed_output = goldilocks_extension_chip.add_extension(ctx, &term1, &term2)?;
 
             constraints.push(goldilocks_extension_chip.sub_extension(

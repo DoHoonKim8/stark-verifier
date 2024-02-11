@@ -1,31 +1,24 @@
 use crate::snark::{
     chip::hasher_chip::HasherChip,
+    context::RegionCtx,
     types::assigned::{AssignedExtensionFieldValue, AssignedHashValues, AssignedMerkleCapValues},
 };
-use halo2_proofs::arithmetic::FieldExt;
-use halo2_proofs::plonk::Error;
-use halo2curves::goldilocks::fp::Goldilocks;
-use halo2wrong::RegionCtx;
+use halo2_proofs::{halo2curves::ff::PrimeField, plonk::Error};
 use halo2wrong_maingate::AssignedValue;
-use poseidon::Spec;
 
 use super::goldilocks_chip::GoldilocksChipConfig;
 
-pub struct TranscriptChip<N: FieldExt, const T: usize, const T_MINUS_ONE: usize, const RATE: usize>
-{
-    hasher_chip: HasherChip<N, T, T_MINUS_ONE, RATE>,
+pub struct TranscriptChip<N: PrimeField> {
+    hasher_chip: HasherChip<N>,
 }
 
-impl<N: FieldExt, const T: usize, const T_MINUS_ONE: usize, const RATE: usize>
-    TranscriptChip<N, T, T_MINUS_ONE, RATE>
-{
+impl<N: PrimeField> TranscriptChip<N> {
     /// Constructs the transcript chip
     pub fn new(
         ctx: &mut RegionCtx<'_, N>,
-        spec: &Spec<Goldilocks, T, T_MINUS_ONE>,
         goldilocks_chip_config: &GoldilocksChipConfig<N>,
     ) -> Result<Self, Error> {
-        let hasher_chip = HasherChip::new(ctx, spec, goldilocks_chip_config)?;
+        let hasher_chip = HasherChip::new(ctx, goldilocks_chip_config)?;
         Ok(Self { hasher_chip })
     }
 

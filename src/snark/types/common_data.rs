@@ -3,7 +3,7 @@ use std::ops::{Range, RangeFrom};
 use crate::snark::{chip::plonk::gates::CustomGateRef, types::fri::FriOracleInfo};
 
 use super::{fri::FriPolynomialInfo, to_goldilocks};
-use halo2curves::{goldilocks::fp::Goldilocks, FieldExt};
+use halo2_proofs::halo2curves::ff::PrimeField;
 use plonky2::{field::goldilocks_field::GoldilocksField, plonk::circuit_data::CommonCircuitData};
 
 #[derive(Clone, Debug, Default)]
@@ -66,7 +66,7 @@ impl SelectorsInfo {
 }
 
 #[derive(Clone, Default)]
-pub struct CommonData<F: FieldExt> {
+pub struct CommonData<F: PrimeField> {
     pub config: CircuitConfig,
 
     pub fri_params: FriParams,
@@ -89,7 +89,7 @@ pub struct CommonData<F: FieldExt> {
     pub num_public_inputs: usize,
 
     /// The `{k_i}` valued used in `S_ID_i` in Plonk's permutation argument.
-    pub k_is: Vec<Goldilocks>,
+    pub k_is: Vec<GoldilocksField>,
 
     /// The number of partial products needed to compute the `Z` polynomials.
     pub num_partial_products: usize,
@@ -121,7 +121,7 @@ impl PlonkOracle {
     };
 }
 
-impl<F: FieldExt> CommonData<F> {
+impl<F: PrimeField> CommonData<F> {
     pub const fn degree_bits(&self) -> usize {
         self.fri_params.degree_bits
     }
@@ -221,7 +221,7 @@ impl<F: FieldExt> CommonData<F> {
     }
 }
 
-impl<F: FieldExt> From<CommonCircuitData<GoldilocksField, 2>> for CommonData<F> {
+impl<F: PrimeField> From<CommonCircuitData<GoldilocksField, 2>> for CommonData<F> {
     fn from(value: CommonCircuitData<GoldilocksField, 2>) -> Self {
         Self {
             config: CircuitConfig {

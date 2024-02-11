@@ -1,18 +1,18 @@
-use halo2curves::FieldExt;
+use halo2_proofs::halo2curves::ff::PrimeField;
 use halo2wrong_maingate::AssignedValue;
 
 #[derive(Clone)]
-pub struct AssignedHashValues<F: FieldExt> {
+pub struct AssignedHashValues<F: PrimeField> {
     pub elements: [AssignedValue<F>; 4],
 }
 
 #[derive(Clone)]
-pub struct AssignedMerkleCapValues<F: FieldExt>(pub Vec<AssignedHashValues<F>>);
+pub struct AssignedMerkleCapValues<F: PrimeField>(pub Vec<AssignedHashValues<F>>);
 
 #[derive(Clone, Debug)]
-pub struct AssignedExtensionFieldValue<F: FieldExt, const D: usize>(pub [AssignedValue<F>; D]);
+pub struct AssignedExtensionFieldValue<F: PrimeField, const D: usize>(pub [AssignedValue<F>; D]);
 
-pub struct AssignedOpeningSetValues<F: FieldExt, const D: usize> {
+pub struct AssignedOpeningSetValues<F: PrimeField, const D: usize> {
     pub constants: Vec<AssignedExtensionFieldValue<F, D>>,
     pub plonk_sigmas: Vec<AssignedExtensionFieldValue<F, D>>,
     pub wires: Vec<AssignedExtensionFieldValue<F, D>>,
@@ -22,7 +22,7 @@ pub struct AssignedOpeningSetValues<F: FieldExt, const D: usize> {
     pub quotient_polys: Vec<AssignedExtensionFieldValue<F, D>>,
 }
 
-impl<F: FieldExt, const D: usize> AssignedOpeningSetValues<F, D> {
+impl<F: PrimeField, const D: usize> AssignedOpeningSetValues<F, D> {
     pub(crate) fn to_fri_openings(&self) -> AssignedFriOpenings<F, D> {
         let zeta_batch = AssignedFriOpeningBatch {
             values: [
@@ -45,16 +45,16 @@ impl<F: FieldExt, const D: usize> AssignedOpeningSetValues<F, D> {
 }
 
 #[derive(Clone)]
-pub struct AssignedMerkleProofValues<F: FieldExt> {
+pub struct AssignedMerkleProofValues<F: PrimeField> {
     pub siblings: Vec<AssignedHashValues<F>>,
 }
 
 #[derive(Clone)]
-pub struct AssignedFriInitialTreeProofValues<F: FieldExt> {
+pub struct AssignedFriInitialTreeProofValues<F: PrimeField> {
     pub evals_proofs: Vec<(Vec<AssignedValue<F>>, AssignedMerkleProofValues<F>)>,
 }
 
-impl<F: FieldExt> AssignedFriInitialTreeProofValues<F> {
+impl<F: PrimeField> AssignedFriInitialTreeProofValues<F> {
     pub(crate) fn unsalted_eval(
         &self,
         oracle_index: usize,
@@ -72,31 +72,31 @@ impl<F: FieldExt> AssignedFriInitialTreeProofValues<F> {
 }
 
 #[derive(Clone)]
-pub struct AssignedFriQueryStepValues<F: FieldExt, const D: usize> {
+pub struct AssignedFriQueryStepValues<F: PrimeField, const D: usize> {
     pub evals: Vec<AssignedExtensionFieldValue<F, D>>,
     pub merkle_proof: AssignedMerkleProofValues<F>,
 }
 
 #[derive(Clone)]
-pub struct AssignedFriQueryRoundValues<F: FieldExt, const D: usize> {
+pub struct AssignedFriQueryRoundValues<F: PrimeField, const D: usize> {
     pub initial_trees_proof: AssignedFriInitialTreeProofValues<F>,
     pub steps: Vec<AssignedFriQueryStepValues<F, D>>,
 }
 
 #[derive(Clone)]
-pub struct AssignedPolynomialCoeffsExtValues<F: FieldExt, const D: usize>(
+pub struct AssignedPolynomialCoeffsExtValues<F: PrimeField, const D: usize>(
     pub Vec<AssignedExtensionFieldValue<F, D>>,
 );
 
 #[derive(Clone)]
-pub struct AssignedFriProofValues<F: FieldExt, const D: usize> {
+pub struct AssignedFriProofValues<F: PrimeField, const D: usize> {
     pub commit_phase_merkle_cap_values: Vec<AssignedMerkleCapValues<F>>,
     pub query_round_proofs: Vec<AssignedFriQueryRoundValues<F, D>>,
     pub final_poly: AssignedPolynomialCoeffsExtValues<F, D>,
     pub pow_witness: AssignedValue<F>,
 }
 
-pub struct AssignedProofValues<F: FieldExt, const D: usize> {
+pub struct AssignedProofValues<F: PrimeField, const D: usize> {
     pub wires_cap: AssignedMerkleCapValues<F>,
     pub plonk_zs_partial_products_cap: AssignedMerkleCapValues<F>,
     pub quotient_polys_cap: AssignedMerkleCapValues<F>,
@@ -105,18 +105,18 @@ pub struct AssignedProofValues<F: FieldExt, const D: usize> {
     pub opening_proof: AssignedFriProofValues<F, D>,
 }
 
-pub struct AssignedProofWithPisValues<F: FieldExt, const D: usize> {
+pub struct AssignedProofWithPisValues<F: PrimeField, const D: usize> {
     pub proof: AssignedProofValues<F, D>,
     pub public_inputs: Vec<AssignedValue<F>>,
 }
 
-pub struct AssignedVerificationKeyValues<F: FieldExt> {
+pub struct AssignedVerificationKeyValues<F: PrimeField> {
     pub constants_sigmas_cap: AssignedMerkleCapValues<F>,
     pub circuit_digest: AssignedHashValues<F>,
 }
 
 #[derive(Clone)]
-pub struct AssignedFriChallenges<F: FieldExt, const D: usize> {
+pub struct AssignedFriChallenges<F: PrimeField, const D: usize> {
     pub fri_alpha: AssignedExtensionFieldValue<F, D>,
     pub fri_betas: Vec<AssignedExtensionFieldValue<F, D>>,
     pub fri_pow_response: AssignedValue<F>,
@@ -124,16 +124,16 @@ pub struct AssignedFriChallenges<F: FieldExt, const D: usize> {
 }
 
 /// Opened values of each polynomial.
-pub struct AssignedFriOpenings<F: FieldExt, const D: usize> {
+pub struct AssignedFriOpenings<F: PrimeField, const D: usize> {
     pub batches: Vec<AssignedFriOpeningBatch<F, D>>,
 }
 
 /// Opened values of each polynomial that's opened at a particular point.
-pub struct AssignedFriOpeningBatch<F: FieldExt, const D: usize> {
+pub struct AssignedFriOpeningBatch<F: PrimeField, const D: usize> {
     pub values: Vec<AssignedExtensionFieldValue<F, D>>,
 }
 
-pub struct AssignedProofChallenges<F: FieldExt, const D: usize> {
+pub struct AssignedProofChallenges<F: PrimeField, const D: usize> {
     pub plonk_betas: Vec<AssignedValue<F>>,
     pub plonk_gammas: Vec<AssignedValue<F>>,
     pub plonk_alphas: Vec<AssignedValue<F>>,

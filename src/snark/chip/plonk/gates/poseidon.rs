@@ -1,21 +1,27 @@
-use halo2_proofs::{arithmetic::Field, plonk::Error};
-use halo2curves::{goldilocks::fp::Goldilocks, FieldExt};
-use halo2wrong::RegionCtx;
+use crate::snark::context::RegionCtx;
+use halo2_proofs::{halo2curves::ff::PrimeField, plonk::Error};
+use plonky2::{
+    field::{goldilocks_field::GoldilocksField, types::Field},
+    hash::poseidon::{HALF_N_FULL_ROUNDS, N_PARTIAL_ROUNDS, SPONGE_WIDTH},
+};
 
 use crate::snark::{
     chip::goldilocks_chip::GoldilocksChipConfig,
     types::assigned::{AssignedExtensionFieldValue, AssignedHashValues},
-    R_F, R_F_HALF, R_P, T,
 };
+const T: usize = SPONGE_WIDTH;
+const R_F: usize = HALF_N_FULL_ROUNDS * 2;
+const R_F_HALF: usize = R_F / 2;
+const R_P: usize = N_PARTIAL_ROUNDS;
 
 use super::CustomGateConstrainer;
 
-/// Note that these work for the Goldilocks field, but not necessarily others. See
+/// Note that these work for the GoldilocksField field, but not necessarily others. See
 /// `generate_constants` about how these were generated. We include enough for a WIDTH of 12;
 /// smaller widths just use a subset.
 #[rustfmt::skip]
 const ALL_ROUND_CONSTANTS: [u64; T * (R_F + R_P)]  = [
-    // WARNING: The AVX2 Goldilocks specialization relies on all round constants being in
+    // WARNING: The AVX2 GoldilocksField specialization relies on all round constants being in
     // 0..0xfffeeac900011537. If these constants are randomly regenerated, there is a ~.6% chance
     // that this condition will no longer hold.
     //
@@ -370,7 +376,7 @@ impl PoseidonGateConstrainer {
         Self::START_FULL_1 + T * round + i
     }
 
-    fn constant_layer<F: FieldExt>(
+    fn constant_layer<F: PrimeField>(
         &self,
         ctx: &mut RegionCtx<'_, F>,
         goldilocks_chip_config: &GoldilocksChipConfig<F>,
@@ -383,8 +389,8 @@ impl PoseidonGateConstrainer {
                 .constant_extension(
                     ctx,
                     &[
-                        Goldilocks::from(ALL_ROUND_CONSTANTS[i + T * round_ctr]),
-                        Goldilocks::zero(),
+                        GoldilocksField::from_canonical_u64(ALL_ROUND_CONSTANTS[i + T * round_ctr]),
+                        GoldilocksField::ZERO,
                     ],
                 )
                 .unwrap();
@@ -394,7 +400,7 @@ impl PoseidonGateConstrainer {
         }
     }
 
-    fn partial_first_constant_layer<F: FieldExt>(
+    fn partial_first_constant_layer<F: PrimeField>(
         &self,
         ctx: &mut RegionCtx<'_, F>,
         goldilocks_chip_config: &GoldilocksChipConfig<F>,
@@ -406,8 +412,8 @@ impl PoseidonGateConstrainer {
                 .constant_extension(
                     ctx,
                     &[
-                        Goldilocks::from(FAST_PARTIAL_FIRST_ROUND_CONSTANT[i]),
-                        Goldilocks::zero(),
+                        GoldilocksField::from_canonical_u64(FAST_PARTIAL_FIRST_ROUND_CONSTANT[i]),
+                        GoldilocksField::ZERO,
                     ],
                 )
                 .unwrap();
@@ -417,7 +423,7 @@ impl PoseidonGateConstrainer {
         }
     }
 
-    fn sbox<F: FieldExt>(
+    fn sbox<F: PrimeField>(
         &self,
         ctx: &mut RegionCtx<'_, F>,
         goldilocks_chip_config: &GoldilocksChipConfig<F>,
@@ -427,7 +433,7 @@ impl PoseidonGateConstrainer {
         goldilocks_extension_chip.exp(ctx, element, 7)
     }
 
-    fn sbox_layer<F: FieldExt>(
+    fn sbox_layer<F: PrimeField>(
         &self,
         ctx: &mut RegionCtx<'_, F>,
         goldilocks_chip_config: &GoldilocksChipConfig<F>,
@@ -438,7 +444,7 @@ impl PoseidonGateConstrainer {
         }
     }
 
-    fn mds_row_shf<F: FieldExt>(
+    fn mds_row_shf<F: PrimeField>(
         &self,
         ctx: &mut RegionCtx<'_, F>,
         goldilocks_chip_config: &GoldilocksChipConfig<F>,
@@ -452,7 +458,10 @@ impl PoseidonGateConstrainer {
         for i in 0..T {
             let c = goldilocks_extension_chip.constant_extension(
                 ctx,
-                &[Goldilocks::from(MDS_MATRIX_CIRC[i]), Goldilocks::zero()],
+                &[
+                    GoldilocksField::from_canonical_u64(MDS_MATRIX_CIRC[i]),
+                    GoldilocksField::ZERO,
+                ],
             )?;
             res = goldilocks_extension_chip.mul_add_extension(
                 ctx,
@@ -463,14 +472,17 @@ impl PoseidonGateConstrainer {
         }
         let c = goldilocks_extension_chip.constant_extension(
             ctx,
-            &[Goldilocks::from(MDS_MATRIX_DIAG[row]), Goldilocks::zero()],
+            &[
+                GoldilocksField::from_canonical_u64(MDS_MATRIX_DIAG[row]),
+                GoldilocksField::ZERO,
+            ],
         )?;
         res = goldilocks_extension_chip.mul_add_extension(ctx, &c, &state[row], &res)?;
 
         Ok(res)
     }
 
-    fn mds_layer<F: FieldExt>(
+    fn mds_layer<F: PrimeField>(
         &self,
         ctx: &mut RegionCtx<'_, F>,
         goldilocks_chip_config: &GoldilocksChipConfig<F>,
@@ -486,7 +498,7 @@ impl PoseidonGateConstrainer {
         result
     }
 
-    fn mds_partial_layer_init<F: FieldExt>(
+    fn mds_partial_layer_init<F: PrimeField>(
         &self,
         ctx: &mut RegionCtx<'_, F>,
         goldilocks_chip_config: &GoldilocksChipConfig<F>,
@@ -506,8 +518,10 @@ impl PoseidonGateConstrainer {
                     .constant_extension(
                         ctx,
                         &[
-                            Goldilocks::from(FAST_PARTIAL_ROUND_INITIAL_MATRIX[r - 1][c - 1]),
-                            Goldilocks::zero(),
+                            GoldilocksField::from_canonical_u64(
+                                FAST_PARTIAL_ROUND_INITIAL_MATRIX[r - 1][c - 1],
+                            ),
+                            GoldilocksField::ZERO,
                         ],
                     )
                     .unwrap();
@@ -519,7 +533,7 @@ impl PoseidonGateConstrainer {
         result
     }
 
-    fn mds_partial_layer_fast<F: FieldExt>(
+    fn mds_partial_layer_fast<F: PrimeField>(
         &self,
         ctx: &mut RegionCtx<'_, F>,
         goldilocks_chip_config: &GoldilocksChipConfig<F>,
@@ -530,12 +544,18 @@ impl PoseidonGateConstrainer {
         let s0 = state[0].clone();
         let mds0to0 = MDS_MATRIX_CIRC[0] + MDS_MATRIX_DIAG[0];
         let mut d = goldilocks_extension_chip
-            .scalar_mul(ctx, &s0, Goldilocks::from(mds0to0))
+            .scalar_mul(ctx, &s0, GoldilocksField::from_canonical_u64(mds0to0))
             .unwrap();
         for i in 1..T {
             let t = FAST_PARTIAL_ROUND_W_HATS[r][i - 1];
             let t = goldilocks_extension_chip
-                .constant_extension(ctx, &[Goldilocks::from(t), Goldilocks::zero()])
+                .constant_extension(
+                    ctx,
+                    &[
+                        GoldilocksField::from_canonical_u64(t),
+                        GoldilocksField::ZERO,
+                    ],
+                )
                 .unwrap();
             d = goldilocks_extension_chip
                 .mul_add_extension(ctx, &t, &state[i], &d)
@@ -550,7 +570,13 @@ impl PoseidonGateConstrainer {
         for i in 1..T {
             let t = FAST_PARTIAL_ROUND_VS[r][i - 1];
             let t = goldilocks_extension_chip
-                .constant_extension(ctx, &[Goldilocks::from(t), Goldilocks::zero()])
+                .constant_extension(
+                    ctx,
+                    &[
+                        GoldilocksField::from_canonical_u64(t),
+                        GoldilocksField::ZERO,
+                    ],
+                )
                 .unwrap();
             result[i] = goldilocks_extension_chip
                 .mul_add_extension(ctx, &t, &state[0], &state[i])
@@ -560,7 +586,7 @@ impl PoseidonGateConstrainer {
     }
 }
 
-impl<F: FieldExt> CustomGateConstrainer<F> for PoseidonGateConstrainer {
+impl<F: PrimeField> CustomGateConstrainer<F> for PoseidonGateConstrainer {
     fn eval_unfiltered_constraint(
         &self,
         ctx: &mut RegionCtx<'_, F>,
@@ -627,8 +653,13 @@ impl<F: FieldExt> CustomGateConstrainer<F> for PoseidonGateConstrainer {
             constraints.push(goldilocks_extension_chip.sub_extension(ctx, &state[0], sbox_in)?);
             state[0] = self.sbox(ctx, goldilocks_chip_config, sbox_in)?;
             let c = FAST_PARTIAL_ROUND_CONSTANTS[r];
-            let c = goldilocks_extension_chip
-                .constant_extension(ctx, &[Goldilocks::from(c), Goldilocks::zero()])?;
+            let c = goldilocks_extension_chip.constant_extension(
+                ctx,
+                &[
+                    GoldilocksField::from_canonical_u64(c),
+                    GoldilocksField::ZERO,
+                ],
+            )?;
             state[0] = goldilocks_extension_chip.add_extension(ctx, &state[0], &c)?;
             state = self.mds_partial_layer_fast(ctx, goldilocks_chip_config, &state, r);
         }
@@ -673,6 +704,6 @@ mod tests {
     fn test_poseidon_gate() {
         let plonky2_gate = PoseidonGate::new();
         let halo2_gate = PoseidonGateConstrainer;
-        test_custom_gate(plonky2_gate, halo2_gate, 16);
+        test_custom_gate(plonky2_gate, halo2_gate, 17);
     }
 }

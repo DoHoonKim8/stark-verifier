@@ -1,8 +1,7 @@
+use crate::snark::context::RegionCtx;
+use halo2_proofs::halo2curves::ff::PrimeField;
+use plonky2::field::{goldilocks_field::GoldilocksField, types::Field};
 use std::ops::Range;
-
-use halo2_proofs::arithmetic::Field;
-use halo2curves::{goldilocks::fp::Goldilocks, FieldExt};
-use halo2wrong::RegionCtx;
 
 use crate::snark::{
     chip::goldilocks_chip::GoldilocksChipConfig,
@@ -26,7 +25,7 @@ impl BaseSumGateConstrainer {
     }
 }
 
-impl<F: FieldExt> CustomGateConstrainer<F> for BaseSumGateConstrainer {
+impl<F: PrimeField> CustomGateConstrainer<F> for BaseSumGateConstrainer {
     fn eval_unfiltered_constraint(
         &self,
         ctx: &mut RegionCtx<'_, F>,
@@ -50,9 +49,9 @@ impl<F: FieldExt> CustomGateConstrainer<F> for BaseSumGateConstrainer {
                     // acc' = acc (x - i)
                     //      = acc x + (-i) acc
                     // Since -i is constant, we can do this in one arithmetic_extension call.
-                    let neg_i = -Goldilocks::from(i);
+                    let neg_i = -GoldilocksField::from_canonical_u64(i as u64);
                     acc = goldilocks_extension_chip
-                        .arithmetic_extension(ctx, Goldilocks::one(), neg_i, &acc, &limb, &acc)
+                        .arithmetic_extension(ctx, GoldilocksField::ONE, neg_i, &acc, &limb, &acc)
                         .unwrap();
                 });
                 acc

@@ -1,27 +1,26 @@
-use halo2_proofs::plonk::Error;
-use halo2curves::{goldilocks::fp::Goldilocks, FieldExt};
-use halo2wrong::RegionCtx;
+use halo2_proofs::{halo2curves::ff::PrimeField, plonk::Error};
+use plonky2::field::{goldilocks_field::GoldilocksField, types::Field};
 
-use crate::snark::types::assigned::AssignedExtensionFieldValue;
+use crate::snark::{context::RegionCtx, types::assigned::AssignedExtensionFieldValue};
 
 use super::{
     goldilocks_chip::GoldilocksChipConfig, goldilocks_extension_chip::GoldilocksExtensionChip,
 };
 
 #[derive(Clone, Debug)]
-pub struct AssignedExtensionAlgebra<F: FieldExt>(pub [AssignedExtensionFieldValue<F, 2>; 2]);
+pub struct AssignedExtensionAlgebra<F: PrimeField>(pub [AssignedExtensionFieldValue<F, 2>; 2]);
 
-impl<F: FieldExt> AssignedExtensionAlgebra<F> {
+impl<F: PrimeField> AssignedExtensionAlgebra<F> {
     pub fn to_ext_array(&self) -> [AssignedExtensionFieldValue<F, 2>; 2] {
         self.0.clone()
     }
 }
 
-pub struct GoldilocksExtensionAlgebraChip<F: FieldExt> {
+pub struct GoldilocksExtensionAlgebraChip<F: PrimeField> {
     goldilocks_chip_config: GoldilocksChipConfig<F>,
 }
 
-impl<F: FieldExt> GoldilocksExtensionAlgebraChip<F> {
+impl<F: PrimeField> GoldilocksExtensionAlgebraChip<F> {
     pub fn new(goldilocks_chip_config: &GoldilocksChipConfig<F>) -> Self {
         Self {
             goldilocks_chip_config: goldilocks_chip_config.clone(),
@@ -60,7 +59,7 @@ impl<F: FieldExt> GoldilocksExtensionAlgebraChip<F> {
     pub fn inner_product_extension(
         &self,
         ctx: &mut RegionCtx<'_, F>,
-        constant: Goldilocks,
+        constant: GoldilocksField,
         starting_acc: &AssignedExtensionFieldValue<F, 2>,
         pairs: &Vec<(
             AssignedExtensionFieldValue<F, 2>,
@@ -73,7 +72,7 @@ impl<F: FieldExt> GoldilocksExtensionAlgebraChip<F> {
             acc = goldilocks_extension_chip.arithmetic_extension(
                 ctx,
                 constant,
-                Goldilocks::from(1),
+                GoldilocksField::from_canonical_u64(1),
                 a,
                 b,
                 &acc,
@@ -134,7 +133,12 @@ impl<F: FieldExt> GoldilocksExtensionAlgebraChip<F> {
             .zip(c.0.clone())
             .map(|((pairs_w, pairs), ci)| {
                 let acc = self.inner_product_extension(ctx, w, &ci, &pairs_w).unwrap();
-                self.inner_product_extension(ctx, Goldilocks::from(1), &acc, &pairs)
+                self.inner_product_extension(
+                    ctx,
+                    GoldilocksField::from_canonical_u64(1),
+                    &acc,
+                    &pairs,
+                )
             })
             .collect::<Result<Vec<_>, Error>>()?;
 

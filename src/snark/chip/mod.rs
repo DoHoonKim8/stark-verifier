@@ -6,5 +6,7 @@ pub mod hasher_chip;
 pub mod merkle_proof_chip;
 pub mod native_chip;
 pub mod plonk;
+pub mod poseidon_spec;
+pub mod public_inputs_hasher_chip;
 pub mod transcript_chip;
 pub mod vector_chip;

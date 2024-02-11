@@ -1,23 +1,24 @@
 use crate::snark::types::proof::ProofValues;
 use halo2_proofs::{
-    arithmetic::FieldExt,
     circuit::{Layouter, SimpleFloorPlanner, Value},
-    halo2curves::bn256::Fr,
+    halo2curves::{bn256::Fr, ff::PrimeField},
     plonk::*,
 };
-use halo2curves::goldilocks::fp::Goldilocks;
-use halo2wrong::RegionCtx;
 use halo2wrong_maingate::{AssignedValue, MainGate, MainGateConfig, RangeChip, RangeConfig};
 use itertools::Itertools;
-use poseidon::Spec;
+use plonky2::plonk::{
+    circuit_data::{CommonCircuitData, VerifierOnlyCircuitData},
+    proof::ProofWithPublicInputs,
+};
 use std::marker::PhantomData;
 
 use super::{
     chip::{
         goldilocks_chip::{GoldilocksChip, GoldilocksChipConfig},
-        native_chip::arithmetic_chip::ArithmeticChipConfig,
+        native_chip::all_chip::AllChipConfig,
         plonk::plonk_verifier_chip::PlonkVerifierChip,
     },
+    context::RegionCtx,
     types::{
         assigned::{
             AssignedProofValues, AssignedProofWithPisValues, AssignedVerificationKeyValues,
@@ -27,17 +28,22 @@ use super::{
         verification_key::VerificationKeyValues,
         HashValues, MerkleCapValues,
     },
-    R_F, R_P, T, T_MINUS_ONE,
 };
 
+pub type ProofTuple<F, C, const D: usize> = (
+    ProofWithPublicInputs<F, C, D>,
+    VerifierOnlyCircuitData<C, D>,
+    CommonCircuitData<F, D>,
+);
+
 #[derive(Clone)]
-pub struct MainGateWithRangeConfig<F: FieldExt> {
+pub struct MainGateWithRangeConfig<F: PrimeField> {
     pub main_gate_config: MainGateConfig,
     pub range_config: RangeConfig,
     _marker: PhantomData<F>,
 }
 
-impl<F: FieldExt> MainGateWithRangeConfig<F> {
+impl<F: PrimeField> MainGateWithRangeConfig<F> {
     pub fn new(meta: &mut ConstraintSystem<F>) -> Self {
         let main_gate_config = MainGate::<F>::configure(meta);
         let range_config = RangeChip::configure(meta, &main_gate_config, vec![16], vec![0]);
@@ -55,7 +61,6 @@ pub struct Verifier {
     instances: Vec<Fr>,
     vk: VerificationKeyValues<Fr>,
     common_data: CommonData<Fr>,
-    spec: Spec<Goldilocks, T, T_MINUS_ONE>,
 }
 
 impl Verifier {
@@ -64,51 +69,35 @@ impl Verifier {
         instances: Vec<Fr>,
         vk: VerificationKeyValues<Fr>,
         common_data: CommonData<Fr>,
-        spec: Spec<Goldilocks, T, T_MINUS_ONE>,
     ) -> Self {
         Self {
             proof,
             instances,
             vk,
             common_data,
-            spec,
         }
     }
 
     fn assign_proof_with_pis(
         &self,
         config: &GoldilocksChipConfig<Fr>,
-        mut layouter: impl Layouter<Fr>,
+        ctx: &mut RegionCtx<'_, Fr>,
         proof: &ProofValues<Fr, 2>,
         instances: &Vec<Fr>,
     ) -> Result<AssignedProofWithPisValues<Fr, 2>, Error> {
-        let public_inputs = layouter.assign_region(
-            || "Assign Plonky2 public inputs",
-            |region| {
-                let ctx = &mut RegionCtx::new(region, 0);
-                let goldilocks_chip = GoldilocksChip::new(config);
+        let goldilocks_chip = GoldilocksChip::new(config);
 
-                let public_inputs = instances
-                    .iter()
-                    .map(|instance| goldilocks_chip.assign_value(ctx, Value::known(*instance)))
-                    .collect::<Result<Vec<AssignedValue<Fr>>, Error>>()?;
-                Ok(public_inputs)
-            },
-        )?;
+        let public_inputs = instances
+            .iter()
+            .map(|instance| goldilocks_chip.assign_value(ctx, Value::known(*instance)))
+            .collect::<Result<Vec<AssignedValue<Fr>>, Error>>()?;
 
-        let wires_cap =
-            MerkleCapValues::assign(config, layouter.namespace(|| ""), &proof.wires_cap)?;
-        let plonk_zs_partial_products_cap = MerkleCapValues::assign(
-            config,
-            layouter.namespace(|| ""),
-            &proof.plonk_zs_partial_products_cap,
-        )?;
-        let quotient_polys_cap =
-            MerkleCapValues::assign(config, layouter.namespace(|| ""), &proof.quotient_polys_cap)?;
-        let openings =
-            OpeningSetValues::assign(config, layouter.namespace(|| ""), &proof.openings)?;
-        let opening_proof =
-            FriProofValues::assign(config, layouter.namespace(|| ""), &proof.opening_proof)?;
+        let wires_cap = MerkleCapValues::assign(config, ctx, &proof.wires_cap)?;
+        let plonk_zs_partial_products_cap =
+            MerkleCapValues::assign(config, ctx, &proof.plonk_zs_partial_products_cap)?;
+        let quotient_polys_cap = MerkleCapValues::assign(config, ctx, &proof.quotient_polys_cap)?;
+        let openings = OpeningSetValues::assign(config, ctx, &proof.openings)?;
+        let opening_proof = FriProofValues::assign(config, ctx, &proof.opening_proof)?;
         Ok(AssignedProofWithPisValues {
             proof: AssignedProofValues {
                 wires_cap,
@@ -124,20 +113,16 @@ impl Verifier {
     pub fn assign_verification_key(
         &self,
         config: &GoldilocksChipConfig<Fr>,
-        mut layouter: impl Layouter<Fr>,
+        ctx: &mut RegionCtx<'_, Fr>,
         vk: &VerificationKeyValues<Fr>,
     ) -> Result<AssignedVerificationKeyValues<Fr>, Error> {
         Ok(AssignedVerificationKeyValues {
             constants_sigmas_cap: MerkleCapValues::assign_constant(
                 config,
-                layouter.namespace(|| ""),
+                ctx,
                 &vk.constants_sigmas_cap,
             )?,
-            circuit_digest: HashValues::assign_constant(
-                config,
-                layouter.namespace(|| ""),
-                &vk.circuit_digest,
-            )?,
+            circuit_digest: HashValues::assign_constant(config, ctx, &vk.circuit_digest)?,
         })
     }
 }
@@ -152,13 +137,12 @@ impl Circuit<Fr> for Verifier {
             instances: self.instances.clone(),
             vk: self.vk.clone(),
             common_data: self.common_data.clone(),
-            spec: Spec::new(R_F, R_P),
         }
     }
 
     fn configure(meta: &mut ConstraintSystem<Fr>) -> Self::Config {
-        let arithmetic_config = ArithmeticChipConfig::<Fr>::configure(meta);
-        GoldilocksChip::configure(&arithmetic_config)
+        let all_chip_config = AllChipConfig::<Fr>::configure(meta);
+        GoldilocksChip::configure(&all_chip_config)
     }
 
     fn synthesize(
@@ -169,27 +153,21 @@ impl Circuit<Fr> for Verifier {
         let goldilocks_chip_config = config.clone();
         let goldilocks_chip = GoldilocksChip::new(&goldilocks_chip_config);
         goldilocks_chip.load_table(&mut layouter)?;
-        let assigned_proof_with_pis = self.assign_proof_with_pis(
-            &goldilocks_chip_config,
-            layouter.namespace(|| "Assign proof and public inputs"),
-            &self.proof,
-            &self.instances,
-        )?;
-        let assigned_vk = self.assign_verification_key(
-            &goldilocks_chip_config,
-            layouter.namespace(|| "Assign verification key"),
-            &self.vk,
-        )?;
-        layouter.assign_region(
+        let assigned_proof_with_pis = layouter.assign_region(
             || "Verify proof",
             |region| {
                 let ctx = &mut RegionCtx::new(region, 0);
-                let plonk_verifier_chip = PlonkVerifierChip::construct(&goldilocks_chip_config);
-                let public_inputs_hash = plonk_verifier_chip.get_public_inputs_hash(
+                let assigned_proof_with_pis = self.assign_proof_with_pis(
+                    &goldilocks_chip_config,
                     ctx,
-                    &assigned_proof_with_pis.public_inputs,
-                    &self.spec,
+                    &self.proof,
+                    &self.instances,
                 )?;
+                let assigned_vk =
+                    self.assign_verification_key(&goldilocks_chip_config, ctx, &self.vk)?;
+                let plonk_verifier_chip = PlonkVerifierChip::construct(&goldilocks_chip_config);
+                let public_inputs_hash = plonk_verifier_chip
+                    .get_public_inputs_hash(ctx, &assigned_proof_with_pis.public_inputs)?;
                 let challenges = plonk_verifier_chip.get_challenges(
                     ctx,
                     &public_inputs_hash,
@@ -197,7 +175,6 @@ impl Circuit<Fr> for Verifier {
                     &self.common_data,
                     &assigned_proof_with_pis.proof,
                     self.common_data.config.num_challenges,
-                    &self.spec,
                 )?;
                 plonk_verifier_chip.verify_proof_with_challenges(
                     ctx,
@@ -206,8 +183,9 @@ impl Circuit<Fr> for Verifier {
                     &challenges,
                     &assigned_vk,
                     &self.common_data,
-                    &self.spec,
-                )
+                )?;
+                dbg!(ctx.offset());
+                Ok(assigned_proof_with_pis)
             },
         )?;
         for (row, public_input) in

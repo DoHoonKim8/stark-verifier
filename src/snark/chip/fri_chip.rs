@@ -1,11 +1,10 @@
-use halo2_proofs::{arithmetic::Field, plonk::Error};
-use halo2curves::{goldilocks::fp::Goldilocks, group::ff::PrimeField, FieldExt};
-use halo2wrong::RegionCtx;
+use halo2_proofs::{halo2curves::ff::PrimeField, plonk::Error};
 use halo2wrong_maingate::AssignedValue;
 use itertools::Itertools;
-use plonky2::util::reverse_index_bits_in_place;
-use poseidon::Spec;
+use plonky2::field::types::{Field, PrimeField64};
+use plonky2::{field::goldilocks_field::GoldilocksField, util::reverse_index_bits_in_place};
 
+use crate::snark::context::RegionCtx;
 use crate::snark::types::{
     assigned::{
         AssignedExtensionFieldValue, AssignedFriChallenges, AssignedFriInitialTreeProofValues,
@@ -23,25 +22,23 @@ use super::{
     vector_chip::VectorChip,
 };
 
-pub struct FriVerifierChip<F: FieldExt> {
+pub struct FriVerifierChip<F: PrimeField> {
     goldilocks_chip_config: GoldilocksChipConfig<F>,
-    spec: Spec<Goldilocks, 12, 11>,
     /// Representative `g` of the coset used in FRI, so that LDEs in FRI are done over `gH`.
     offset: AssignedValue<F>,
     /// The degree of the purported codeword, measured in bits.
     fri_params: FriParams,
 }
 
-impl<F: FieldExt> FriVerifierChip<F> {
+impl<F: PrimeField> FriVerifierChip<F> {
     pub fn construct(
         goldilocks_chip_config: &GoldilocksChipConfig<F>,
-        spec: Spec<Goldilocks, 12, 11>,
+
         offset: &AssignedValue<F>,
         fri_params: FriParams,
     ) -> Self {
         Self {
             goldilocks_chip_config: goldilocks_chip_config.clone(),
-            spec,
             offset: offset.clone(),
             fri_params,
         }
@@ -92,8 +89,7 @@ impl<F: FieldExt> FriVerifierChip<F> {
         initial_merkle_caps: &[AssignedMerkleCapValues<F>],
         initial_trees_proof: &AssignedFriInitialTreeProofValues<F>,
     ) -> Result<(), Error> {
-        let merkle_proof_chip =
-            MerkleProofChip::new(&self.goldilocks_chip_config, self.spec.clone());
+        let merkle_proof_chip = MerkleProofChip::new(&self.goldilocks_chip_config);
         for (_, ((evals, merkle_proof), cap)) in initial_trees_proof
             .evals_proofs
             .iter()
@@ -162,12 +158,8 @@ impl<F: FieldExt> FriVerifierChip<F> {
 
         // `omega` is the root of unity for initial domain in FRI
         // TODO : add function for primitive root of unity in halo2curves
-        let omega = Goldilocks::multiplicative_generator().pow(&[
-            ((halo2curves::goldilocks::fp::MODULUS - 1) / lde_size).to_le(),
-            0,
-            0,
-            0,
-        ]);
+        let omega = GoldilocksField::MULTIPLICATIVE_GROUP_GENERATOR
+            .exp_u64(GoldilocksField::NEG_ONE.to_canonical_u64() / lde_size);
         let x = goldilocks_chip.exp_from_bits(ctx, omega, &x_index_bits[..])?;
         Ok(x)
     }
@@ -186,13 +178,9 @@ impl<F: FieldExt> FriVerifierChip<F> {
         // computes `P'(x^arity)` where `arity = 1 << arity_bits` from `P(x*g^i), (i = 0, ..., arity)` where
         // g is `arity`-th primitive root of unity. P' is FRI folded polynomial.
         let arity = 1 << arity_bits;
-        let g = Goldilocks::multiplicative_generator().pow(&[
-            ((halo2curves::goldilocks::fp::MODULUS - 1) / arity as u64).to_le(),
-            0,
-            0,
-            0,
-        ]);
-        let g_inv = g.invert().unwrap();
+        let g = GoldilocksField::MULTIPLICATIVE_GROUP_GENERATOR
+            .exp_u64(GoldilocksField::NEG_ONE.to_canonical_u64() / (arity as u64));
+        let g_inv = g.inverse();
         let g = goldilocks_chip.assign_constant(ctx, g)?;
 
         // The evaluation vector needs to be reordered first.
@@ -211,7 +199,7 @@ impl<F: FieldExt> FriVerifierChip<F> {
         let coset_start = goldilocks_chip.mul(ctx, &start, x)?;
 
         // The answer is gotten by interpolating {(x*g^i, P(x*g^i))} and evaluating at beta.
-        let mut g_power = goldilocks_chip.assign_constant(ctx, Goldilocks::one())?;
+        let mut g_power = goldilocks_chip.assign_constant(ctx, GoldilocksField::ONE)?;
         let mut points = vec![];
         for (_, eval) in evals.iter().enumerate() {
             let x = goldilocks_chip.mul(ctx, &coset_start, &g_power)?;
@@ -311,8 +299,7 @@ impl<F: FieldExt> FriVerifierChip<F> {
                 &fri_betas[i],
             )?;
 
-            let merkle_proof_chip =
-                MerkleProofChip::new(&self.goldilocks_chip_config, self.spec.clone());
+            let merkle_proof_chip = MerkleProofChip::new(&self.goldilocks_chip_config);
             merkle_proof_chip.verify_merkle_proof_to_cap_with_cap_index(
                 ctx,
                 &evals.iter().flat_map(|eval| eval.0.clone()).collect_vec(),
@@ -321,13 +308,11 @@ impl<F: FieldExt> FriVerifierChip<F> {
                 &fri_proof.commit_phase_merkle_cap_values[i],
                 &round_proof.steps[i].merkle_proof,
             )?;
-
             // Update the point x to x^arity.
             x_from_subgroup = goldilocks_chip.exp_power_of_2(ctx, &x_from_subgroup, arity_bits)?;
 
             x_index_bits = coset_index_bits;
         }
-
         // Final check of FRI. After all the reductions, we check that the final polynomial is equal
         // to the one sent by the prover.
         let final_poly_coeffs = &fri_proof.final_poly.0;

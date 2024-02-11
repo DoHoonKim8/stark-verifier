@@ -1,16 +1,17 @@
-use halo2_proofs::{arithmetic::Field, plonk::Error};
-use halo2curves::{goldilocks::fp::Goldilocks, FieldExt};
-use halo2wrong::RegionCtx;
+use halo2_proofs::{halo2curves::ff::PrimeField, plonk::Error};
 use halo2wrong_maingate::AssignedValue;
+use plonky2::field::{goldilocks_field::GoldilocksField, types::Field};
+
+use crate::snark::context::RegionCtx;
 
 use super::goldilocks_chip::{GoldilocksChip, GoldilocksChipConfig};
 
-pub struct VectorChip<F: FieldExt> {
+pub struct VectorChip<F: PrimeField> {
     main_gate_config: GoldilocksChipConfig<F>,
     vector: Vec<AssignedValue<F>>,
 }
 
-impl<F: FieldExt> VectorChip<F> {
+impl<F: PrimeField> VectorChip<F> {
     pub fn new(main_gate_config: &GoldilocksChipConfig<F>, vector: Vec<AssignedValue<F>>) -> Self {
         Self {
             main_gate_config: main_gate_config.clone(),
@@ -29,12 +30,12 @@ impl<F: FieldExt> VectorChip<F> {
     ) -> Result<AssignedValue<F>, Error> {
         let main_gate = self.main_gate();
         // this value will be used to check whether the index is in the bound
-        let mut not_exists = main_gate.assign_constant(ctx, Goldilocks::one())?;
+        let mut not_exists = main_gate.assign_constant(ctx, GoldilocksField::ONE)?;
 
-        let zero = main_gate.assign_constant(ctx, Goldilocks::zero())?;
+        let zero = main_gate.assign_constant(ctx, GoldilocksField::ZERO)?;
         let mut element = zero.clone();
         for (i, v) in self.vector.iter().enumerate() {
-            let assigned_i = main_gate.assign_constant(ctx, Goldilocks(i as u64))?;
+            let assigned_i = main_gate.assign_constant(ctx, GoldilocksField(i as u64))?;
             let i_minus_index = main_gate.sub(ctx, &assigned_i, index)?;
             not_exists = main_gate.mul(ctx, &not_exists, &i_minus_index)?;
 

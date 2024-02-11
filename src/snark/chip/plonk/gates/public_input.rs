@@ -1,8 +1,7 @@
 use std::ops::Range;
 
-use halo2_proofs::plonk::Error;
-use halo2curves::FieldExt;
-use halo2wrong::RegionCtx;
+use crate::snark::context::RegionCtx;
+use halo2_proofs::{halo2curves::ff::PrimeField, plonk::Error};
 
 use crate::snark::{
     chip::goldilocks_chip::GoldilocksChipConfig,
@@ -20,7 +19,7 @@ impl PublicInputGateConstrainer {
     }
 }
 
-impl<F: FieldExt> CustomGateConstrainer<F> for PublicInputGateConstrainer {
+impl<F: PrimeField> CustomGateConstrainer<F> for PublicInputGateConstrainer {
     fn eval_unfiltered_constraint(
         &self,
         ctx: &mut RegionCtx<'_, F>,
