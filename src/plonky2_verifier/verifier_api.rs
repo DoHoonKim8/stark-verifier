@@ -19,8 +19,6 @@ use halo2_solidity_verifier::Evm;
 use halo2_solidity_verifier::SolidityGenerator;
 use plonky2::field::goldilocks_field::GoldilocksField;
 
-const DEGREE: u32 = 20;
-
 fn report_elapsed(now: Instant) {
     println!(
         "{}",
@@ -34,6 +32,7 @@ fn report_elapsed(now: Instant) {
 /// feed Plonky2 proof, `VerifierOnlyCircuitData`, `CommonCircuitData`
 /// This runs only mock prover for constraint check
 pub fn verify_inside_snark_mock(
+    degree: u32,
     proof: ProofTuple<GoldilocksField, Bn254PoseidonGoldilocksConfig, 2>,
 ) {
     let (proof_with_public_inputs, vd, cd) = proof;
@@ -48,14 +47,17 @@ pub fn verify_inside_snark_mock(
     let vk = VerificationKeyValues::from(vd.clone());
     let common_data = CommonData::from(cd);
     let verifier_circuit = Verifier::new(proof, instances.clone(), vk, common_data);
-    let prover = MockProver::run(DEGREE, &verifier_circuit, vec![instances.clone()]).unwrap();
+    let prover = MockProver::run(degree, &verifier_circuit, vec![instances.clone()]).unwrap();
     prover.assert_satisfied();
 }
 
 /// Public API for generating Halo2 proof for Plonky2 verifier circuit
 /// feed Plonky2 proof, `VerifierOnlyCircuitData`, `CommonCircuitData`
 /// This runs real prover and generates valid SNARK proof, generates EVM verifier and runs the verifier
-pub fn verify_inside_snark(proof: ProofTuple<GoldilocksField, Bn254PoseidonGoldilocksConfig, 2>) {
+pub fn verify_inside_snark(
+    degree: u32,
+    proof: ProofTuple<GoldilocksField, Bn254PoseidonGoldilocksConfig, 2>,
+) {
     let (proof_with_public_inputs, vd, cd) = proof;
     let proof = ProofValues::<Fr, 2>::from(proof_with_public_inputs.proof);
     let instances = proof_with_public_inputs
@@ -67,12 +69,12 @@ pub fn verify_inside_snark(proof: ProofTuple<GoldilocksField, Bn254PoseidonGoldi
     let common_data = CommonData::from(cd);
     // runs mock prover
     let circuit = Verifier::new(proof, instances.clone(), vk, common_data);
-    let mock_prover = MockProver::run(DEGREE, &circuit, vec![instances.clone()]).unwrap();
+    let mock_prover = MockProver::run(degree, &circuit, vec![instances.clone()]).unwrap();
     mock_prover.assert_satisfied();
     println!("{}", "Mock prover passes".white().bold());
     // generates halo2 solidity verifier
     let mut rng = rand::thread_rng();
-    let param = ParamsKZG::<Bn256>::setup(DEGREE, &mut rng);
+    let param = ParamsKZG::<Bn256>::setup(degree, &mut rng);
     let vk = keygen_vk(&param, &circuit).unwrap();
     let pk = keygen_pk(&param, vk.clone(), &circuit).unwrap();
     let generator = SolidityGenerator::new(&param, &vk, Bdfg21, instances.len());
@@ -95,7 +97,7 @@ pub fn verify_inside_snark(proof: ProofTuple<GoldilocksField, Bn254PoseidonGoldi
 
 #[cfg(test)]
 mod tests {
-    use super::verify_inside_snark_mock;
+    use super::{verify_inside_snark, verify_inside_snark_mock};
     use crate::plonky2_verifier::{
         bn245_poseidon::plonky2_config::{
             standard_inner_stark_verifier_config, standard_stark_verifier_config,
@@ -155,6 +157,12 @@ mod tests {
     #[test]
     fn test_recursive_halo2_mock() {
         let proof = generate_proof_tuple();
-        verify_inside_snark_mock(proof);
+        verify_inside_snark_mock(19, proof);
+    }
+
+    #[test]
+    fn test_recursive_halo2_proof() {
+        let proof = generate_proof_tuple();
+        verify_inside_snark(19, proof);
     }
 }
