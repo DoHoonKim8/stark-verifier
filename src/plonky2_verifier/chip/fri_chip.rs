@@ -1,10 +1,18 @@
+use halo2_proofs::circuit::AssignedCell;
 use halo2_proofs::{halo2curves::ff::PrimeField, plonk::Error};
 use halo2wrong_maingate::AssignedValue;
 use itertools::Itertools;
 use plonky2::field::types::{Field, PrimeField64};
 use plonky2::{field::goldilocks_field::GoldilocksField, util::reverse_index_bits_in_place};
 
+use super::{
+    goldilocks_chip::{GoldilocksChip, GoldilocksChipConfig},
+    goldilocks_extension_chip::GoldilocksExtensionChip,
+    merkle_proof_chip::MerkleProofChip,
+    vector_chip::VectorChip,
+};
 use crate::plonky2_verifier::context::RegionCtx;
+use crate::plonky2_verifier::types::common_data::FriConfig;
 use crate::plonky2_verifier::types::{
     assigned::{
         AssignedExtensionFieldValue, AssignedFriChallenges, AssignedFriInitialTreeProofValues,
@@ -13,13 +21,6 @@ use crate::plonky2_verifier::types::{
     },
     common_data::FriParams,
     fri::{FriBatchInfo, FriInstanceInfo},
-};
-
-use super::{
-    goldilocks_chip::{GoldilocksChip, GoldilocksChipConfig},
-    goldilocks_extension_chip::GoldilocksExtensionChip,
-    merkle_proof_chip::MerkleProofChip,
-    vector_chip::VectorChip,
 };
 
 pub struct FriVerifierChip<F: PrimeField> {
@@ -334,6 +335,13 @@ impl<F: PrimeField> FriVerifierChip<F> {
         fri_proof: &AssignedFriProofValues<F, 2>,
         fri_instance_info: &FriInstanceInfo<F, 2>,
     ) -> Result<(), Error> {
+        // verify proof of work
+        self.fri_verify_proof_of_work(
+            ctx,
+            &fri_challenges.fri_pow_response,
+            &self.fri_params.config,
+        )?;
+
         // this value is the same across all queries
         let reduced_openings =
             self.compute_reduced_openings(ctx, &fri_challenges.fri_alpha, fri_openings)?;
@@ -349,6 +357,20 @@ impl<F: PrimeField> FriVerifierChip<F> {
                 round_proof,
                 &reduced_openings,
             )?;
+        }
+        Ok(())
+    }
+
+    pub fn fri_verify_proof_of_work(
+        &self,
+        ctx: &mut RegionCtx<'_, F>,
+        fri_pow_response: &AssignedCell<F, F>,
+        config: &FriConfig,
+    ) -> Result<(), Error> {
+        let goldilocks_chip = self.goldilocks_chip();
+        let bits = goldilocks_chip.to_bits(ctx, fri_pow_response, 64)?;
+        for b in bits.iter().rev().take(config.proof_of_work_bits as usize) {
+            goldilocks_chip.assert_zero(ctx, &b)?;
         }
         Ok(())
     }
