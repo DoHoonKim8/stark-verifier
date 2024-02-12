@@ -333,11 +333,14 @@ mod tests {
         let wrapper_circuit =
             WrapperCircuit::new(standard_stark_verifier_config(), &verifier_circuit_data);
         let wrapped_proof = wrapper_circuit.prove(&proof).unwrap();
-        verify_inside_snark((
-            wrapped_proof,
-            wrapper_circuit.data.verifier_only.clone(),
-            wrapper_circuit.data.common.clone(),
-        ));
+        verify_inside_snark(
+            20,
+            (
+                wrapped_proof,
+                wrapper_circuit.data.verifier_only.clone(),
+                wrapper_circuit.data.common.clone(),
+            ),
+        );
 
         Ok(())
     }
