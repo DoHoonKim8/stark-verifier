@@ -68,7 +68,7 @@ impl<F: PrimeField> ArithmeticChipConfig<F> {
         meta.enable_constant(constant);
 
         meta.create_gate("limb decomposition", |meta| {
-            let s_limb = meta.query_selector(s_range);
+            let s_limb = meta.query_selector(s_limb);
             let q = meta.query_advice(q, Rotation::cur());
             let q_limbs = q_limbs
                 .map(|l| meta.query_advice(l, Rotation::cur()))
@@ -86,7 +86,7 @@ impl<F: PrimeField> ArithmeticChipConfig<F> {
             vec![s_limb.clone() * (q - q_acc), s_limb.clone() * (r - r_acc)]
         });
 
-        // This custom gate ensures that r satisfies 0 <= r < GOLDILOCKS_MODULUS when s_limb is enabled.
+        // This custom gate ensures that r satisfies 0 <= r < GOLDILOCKS_MODULUS when s_range is enabled.
         meta.create_gate("q = p - r", |meta| {
             let q = meta.query_advice(q, Rotation::cur());
             let r = meta.query_advice(r, Rotation::cur());
